@@ -1,0 +1,23 @@
+# Python / test caches
+__pycache__/
+*.pyc
+.pytest_cache/
+.python-version
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.bak
+*~
+
+# Live Claude state (never commit)
+.claude.json
+claude.json
+
+# Composed/live settings written into a product root (this repo ships the TEMPLATE only)
+**/.claude/settings.json

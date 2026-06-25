@@ -1,0 +1,21 @@
+{
+  "name": "auto-support",
+  "version": "0.1.0",
+  "description": "Answer product Discord questions from public docs only; fail-closed leak guards; escalate the unsure to founders.",
+  "author": {
+    "name": "DaizeDong"
+  },
+  "homepage": "https://github.com/DaizeDong/auto-support",
+  "license": "MIT",
+  "keywords": [
+    "discord",
+    "customer-support",
+    "security",
+    "guardrails",
+    "prompt-injection",
+    "rag",
+    "dlp",
+    "llm-safety",
+    "skill"
+  ]
+}

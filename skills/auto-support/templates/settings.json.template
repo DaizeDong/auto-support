@@ -1,0 +1,39 @@
+{
+  "// NOTE": "Deployed into the PRODUCT ROOT as .claude/settings.json by auto-support-config/scripts/apply.py. permissions.deny + the PreToolUse hook are the enforcement layer — SKILL.md is not. Edit globs to match the product's secret_denylist. __HOOK_CMD__ is replaced with the absolute python invocation of pretooluse_hook.py.",
+  "permissions": {
+    "deny": [
+      "Read(./.env)", "Read(./.env.*)", "Read(**/.env)", "Read(**/.env.*)",
+      "Read(./secrets/**)", "Read(./credentials/**)", "Read(./vault/**)",
+      "Read(./src/**)", "Read(./internal/**)", "Read(./proprietary/**)", "Read(./algorithms/**)",
+      "Read(**/*.pem)", "Read(**/*.key)", "Read(**/id_rsa)", "Read(**/customer_data/**)",
+      "Read(**/*.pii.*)", "Read(**/CLAUDE.md)", "Read(./.git/**)",
+      "Bash(cat:*)", "Bash(head:*)", "Bash(tail:*)", "Bash(sed:*)", "Bash(grep:*)",
+      "Bash(rg:*)", "Bash(base64:*)", "Bash(xxd:*)", "Bash(strings:*)",
+      "Bash(curl:*)", "Bash(wget:*)", "Bash(nc:*)", "Bash(ssh:*)", "Bash(scp:*)",
+      "Write", "Edit", "MultiEdit", "NotebookEdit",
+      "WebFetch", "WebSearch",
+      "mcp__*"
+    ],
+    "// note_deny_mcp": "mcp__* is denied wholesale; re-allow ONLY the specific approved verbs below.",
+    "allow": [
+      "Read(./README*)", "Read(./docs/**)", "Read(./public-faq/**)", "Read(./CHANGELOG*)",
+      "Read(./examples/**)", "Read(**/*.example)",
+      "mcp__discord__post_reply"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__HOOK_CMD__",
+            "// command_example": "python C:/Users/<you>/.claude/skills/auto-support/scripts/pretooluse_hook.py"
+          }
+        ]
+      }
+    ]
+  },
+  "// sandbox": "On a host with native sandboxing (or under WSL2/devcontainer), also set filesystem.denyRead for the same globs — it covers ALL child processes, closing the gap permissions.deny leaves for python/node open(). Deferred on bare Win11 (no native sandbox)."
+}

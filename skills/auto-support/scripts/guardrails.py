@@ -262,13 +262,58 @@ ROLE_CLAIM_PHRASES: tuple[str, ...] = (
 
 _LEET = str.maketrans({"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"})
 
+# Unicode CONFUSABLES fold (architecture §9.5: a weaker script must NOT be a guardrail gap —
+# every script shares ONE allow/deny boundary). NFKC does NOT fold these look-alikes, so a
+# Cyrillic/Greek-substituted "іgnоrе prеvіоus" sails past a Latin-only normalizer. We map only
+# cross-SCRIPT confusables (Cyrillic + Greek) to their Latin skeleton — NOT Latin diacritics
+# (é í ç ô …), so legitimate multilingual prose is untouched (no over-blocking).
+_CONFUSABLES = str.maketrans({
+    # Cyrillic (lowercased) -> Latin
+    "а": "a", "е": "e", "о": "o", "р": "p", "с": "c", "у": "y", "х": "x", "і": "i",
+    "ј": "j", "ѕ": "s", "к": "k", "м": "m", "т": "t", "в": "b", "н": "h", "д": "d",
+    "ё": "e", "ԁ": "d", "ԛ": "q", "ԝ": "w", "ո": "n",
+    # Greek (lowercased) -> Latin
+    "ο": "o", "α": "a", "ε": "e", "ρ": "p", "ν": "v", "υ": "u", "κ": "k", "ι": "i",
+    "τ": "t", "η": "n", "ϲ": "c", "χ": "x", "μ": "u",
+})
+
+
+def _fold_confusables(t: str) -> str:
+    return t.translate(_CONFUSABLES)
+
 
 def _normalize(text: str) -> str:
     t = unicodedata.normalize("NFKC", text)
     t = _ZW_RE.sub("", t)              # strip zero-width / soft-hyphen smuggling
-    t = t.lower().translate(_LEET)     # leetspeak -> letters
+    t = t.lower()
+    t = _fold_confusables(t)           # Cyrillic/Greek look-alikes -> Latin skeleton (§9.5)
+    t = t.translate(_LEET)             # leetspeak -> letters
     t = re.sub(r"[^a-z0-9]+", " ", t)  # punctuation/markdown -> spaces
     return re.sub(r"\s+", " ", t).strip()
+
+
+# rotN / Caesar cipher views (architecture §9.3.5 obfuscation: cipher channel). _decode_layers
+# only peels base64/hex; a trivial ROT13 (or any rotN) carries the same instruction-override
+# past it. We add every Caesar rotation as an extra decoded view. False-positive risk is
+# negligible: INJECTION_PHRASES are specific multi-word sequences, so a benign sentence is
+# astronomically unlikely to spell one out under any single rotation.
+def _caesar_views(text: str) -> list[str]:
+    has_alpha = any(c.isalpha() for c in text)
+    if not has_alpha:
+        return []
+    out: list[str] = []
+    for k in range(1, 26):
+        buf = []
+        for ch in text:
+            o = ord(ch)
+            if 97 <= o <= 122:
+                buf.append(chr((o - 97 + k) % 26 + 97))
+            elif 65 <= o <= 90:
+                buf.append(chr((o - 65 + k) % 26 + 65))
+            else:
+                buf.append(ch)
+        out.append("".join(buf))
+    return out
 
 
 def _decode_layers(text: str) -> list[str]:
@@ -296,9 +341,11 @@ def _anagram_hit(tok: str, target: str) -> bool:
     return tok[0] == target[0] and tok[-1] == target[-1] and sorted(tok) == sorted(target)
 
 
-def _phrase_present(norm: str, phrase: str) -> bool:
+def _phrase_present(norm: str, phrase: str, fuzzy: bool = True) -> bool:
     if phrase in norm:
         return True
+    if not fuzzy:
+        return False  # decoded / cipher views: exact-only (no fuzzy FP across rotations)
     # fuzzy / scrambled fallback, token-aligned (catches "ignroe prevoius" etc.)
     p_tokens = phrase.split()
     n_tokens = norm.split()
@@ -340,16 +387,21 @@ def detect_injection(text: str) -> InjectionResult:
     """
     if not text:
         return InjectionResult(False)
-    views = [_normalize(text)] + [_normalize(v) for v in _decode_layers(text)]
+    # Primary view: fuzzy (handles typoglycemia/leet/confusables of the literal text).
+    # Derived views (base64/hex/Caesar-decoded): exact-only — the decode IS the signal, and
+    # fuzzy matching across many rotations would invite false positives.
+    primary = [(_normalize(text), True)]
+    derived = [(_normalize(v), False) for v in _decode_layers(text)]
+    derived += [(_normalize(v), False) for v in _caesar_views(text)]
     cats: set[str] = set()
     matched: list[str] = []
-    for view in views:
+    for view, fuzzy in primary + derived:
         for ph in INJECTION_PHRASES:
-            if _phrase_present(view, ph):
+            if _phrase_present(view, ph, fuzzy=fuzzy):
                 cats.add("instruction_override")
                 matched.append(ph)
         for ph in ROLE_CLAIM_PHRASES:
-            if _phrase_present(view, ph):
+            if _phrase_present(view, ph, fuzzy=fuzzy):
                 cats.add("identity_claim")
                 matched.append(ph)
     # markdown/link exfil channel (image or link that could smuggle data outbound)

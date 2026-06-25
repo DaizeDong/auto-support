@@ -21,3 +21,6 @@ claude.json
 
 # Composed/live settings written into a product root (this repo ships the TEMPLATE only)
 **/.claude/settings.json
+
+# self-evolve run artifacts (run metadata; never commit)
+.sie/

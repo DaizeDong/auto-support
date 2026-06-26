@@ -25,6 +25,23 @@ from dataclasses import dataclass, field
 _CITE_RE = re.compile(r"\[([^\]\s:]+(?:/[^\]\s:]+)*):(\d+)\]|\(([^\s)]+):(\d+)\)")
 _SENT_SPLIT = re.compile(r"(?<=[.!?。！？])\s+")
 
+# Salient numeric tokens (architecture §3.3 confidence calibration). Numbers ARE the high-stakes
+# facts in support (rate limits, prices, versions, dates); a fabricated number ("100000" when the
+# source says "100") is a confidently-wrong answer that the term-overlap faithfulness check misses.
+# Only multi-digit numbers count as salient (single-digit step numbers / "v2" are ignored so they
+# never cause an FP), and a grounded answer COPIES the number from the cited line, so its numbers
+# are present in the cited snippet -> no FP on the normal grounded path.
+_NUM_RE = re.compile(r"\d[\d,]*\.?\d*")
+
+
+def _salient_nums(text: str) -> set[str]:
+    out = set()
+    for m in _NUM_RE.finditer(text):
+        d = re.sub(r"\D", "", m.group(0))
+        if len(d) >= 2:
+            out.add(d)
+    return out
+
 
 @dataclass
 class Snippet:
@@ -71,7 +88,20 @@ def _sentence_supported(sentence: str, snippets_by_key: dict[tuple[str, int], Sn
     cites = _CITE_RE.findall(sentence)
     if not cites:
         return False  # no citation -> not grounded (architecture: every claim must cite)
-    sent_terms = _terms(re.sub(_CITE_RE, "", sentence))
+    decited = re.sub(_CITE_RE, "", sentence)
+    sent_terms = _terms(decited)
+    # §3.3 numeric calibration: a SALIENT number in the claim that appears in NONE of the cited
+    # snippets is a fabricated fact (confidently-wrong) -> not supported, even if the words overlap.
+    cited_nums: set[str] = set()
+    for c in cites:
+        path = c[0] or c[2]
+        line = int(c[1] or c[3])
+        snip = snippets_by_key.get((path, line))
+        if snip:
+            cited_nums |= _salient_nums(snip.text)
+    for n in _salient_nums(decited):
+        if n not in cited_nums:
+            return False  # fabricated / uncited numeric value -> abstain (rather漏答 than错答)
     for c in cites:
         path = c[0] or c[2]
         line = int(c[1] or c[3])

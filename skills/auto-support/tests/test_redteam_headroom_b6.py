@@ -48,8 +48,6 @@ import os
 import sys
 import unicodedata
 
-import pytest
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 import guardrails as G  # noqa: E402
 import grounding as GR  # noqa: E402
@@ -83,7 +81,6 @@ def test_egress_nfkc_sanity_b6():
     assert G.scan_secrets(unicodedata.normalize("NFKC", _to_fullwidth(_ALGO_CANARY))).hit
 
 
-@pytest.mark.xfail(strict=False, reason="batch-6 headroom: egress never NFKC-normalizes the visible text")
 def test_egress_fullwidth_algo_canary_blocked():
     fw = _to_fullwidth(_ALGO_CANARY)
     assert not G.egress_leak_verdict("the value is " + fw).safe
@@ -108,7 +105,6 @@ def test_egress_escape_sanity_b6():
     assert not G.egress_leak_verdict(_LIVE_CANARY).safe
 
 
-@pytest.mark.xfail(strict=False, reason="batch-6 headroom: egress never un-escapes \\xNN / \\uNNNN runs")
 def test_egress_backslash_escape_secret_blocked():
     xesc = "".join("\\x%02x" % ord(c) for c in _LIVE_CANARY)
     uesc = "".join("\\u%04x" % ord(c) for c in _LIVE_CANARY)
@@ -139,7 +135,6 @@ _CHANGELOG = [GR.Snippet("CHANGELOG.md", 2,
                          "Version 2.1.0 released on 2024-05-01 with new endpoints.")]
 
 
-@pytest.mark.xfail(strict=False, reason="batch-6 headroom: faithfulness ignores numeric values")
 def test_grounding_fabricated_number_abstains():
     # fabricated rate limit (source says 100, answer says 100000) with a valid citation.
     fab = "The rate limit is 100000 requests per minute per API key [public-faq/faq.md:4]."

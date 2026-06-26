@@ -425,6 +425,31 @@ def _caesar_views(text: str) -> list[str]:
     return out
 
 
+# Backslash byte/unicode escapes (architecture §9.3.5 named-encoding channel). A secret emitted as
+# a RUN of \xNN (Python/C/JSON byte escapes) or \uNNNN (JS/JSON unicode escapes) is never un-escaped
+# by _decode_layers (which only peels base64/hex BLOBS). We require a run of >=4 so a doc that merely
+# mentions a lone "\x41" / "é" is untouched (the decoded bytes only fire a detector if they
+# actually form a credential SHAPE -> negligible FP).
+_XESC_RUN = re.compile(r"(?:\\x[0-9a-fA-F]{2}){4,}")
+_UESC_RUN = re.compile(r"(?:\\u[0-9a-fA-F]{4}){4,}")
+
+
+def _unescape_backslash(text: str) -> list[str]:
+    """Decode runs of \\xNN / \\uNNNN escapes back to plaintext (for the egress re-scan)."""
+    out: list[str] = []
+    for m in _XESC_RUN.finditer(text):
+        try:
+            out.append(bytes.fromhex(re.sub(r"\\x", "", m.group(0))).decode("utf-8", "ignore"))
+        except Exception:
+            pass
+    for m in _UESC_RUN.finditer(text):
+        try:
+            out.append("".join(chr(int(h, 16)) for h in re.findall(r"\\u([0-9a-fA-F]{4})", m.group(0))))
+        except Exception:
+            pass
+    return out
+
+
 def _decode_layers(text: str) -> list[str]:
     """Return extra plaintext views by decoding embedded base64 / hex blobs."""
     out: list[str] = []
@@ -625,6 +650,21 @@ def egress_leak_verdict(text: str) -> LeakVerdict:
     rev = text[::-1]
     encoded_views.append(rev)
     encoded_views += list(_decode_layers(rev))
+    # batch-6 (§9.2/§9.3.5): two more channels on the egress path.
+    #   (N) Unicode NORMALIZATION: a secret written in FULLWIDTH / compatibility forms
+    #       (ＰＲＯＰＲＩＥＴＡＲＹ＿ＣＡＮＡＲＹ) matches no ASCII shape regex and is not even a high-entropy
+    #       *candidate* (the candidate class excludes fullwidth), so it slips every other view. NFKC
+    #       folds it back to the ASCII skeleton. NFKC is ~identity on benign prose (fullwidth
+    #       punctuation/digits decode to ordinary chars that hold no credential SHAPE), so re-scanning
+    #       only adds detections for a REAL shape (zero benign FP).
+    #   (E) backslash ESCAPES: a credential emitted as a run of \xNN / \uNNNN is un-escaped here.
+    nfkc = unicodedata.normalize("NFKC", text)
+    if nfkc != text:
+        encoded_views.append(nfkc)
+        encoded_views += list(_decode_layers(nfkc))
+    for ev in _unescape_backslash(text):
+        encoded_views.append(ev)
+        encoded_views += list(_decode_layers(ev))
     for v in encoded_views:
         if not v or v == text:
             continue

@@ -84,6 +84,31 @@ def _norm_glob(g: str) -> str:
     return g.lower()
 
 
+# Path-traversal `..` segment (architecture §2.2 knowledge boundary): a glob allowlist matches on
+# the LITERAL string, so `docs/../secrets/customers.csv` matches `docs/**` (fnmatch '*' crosses '/')
+# while physically resolving OUTSIDE the boundary. The boundary must be evaluated on the RESOLVED
+# location, so any `..` segment is fail-closed DENIED — including percent-encoded (`%2e%2e`, even
+# double-encoded) and backslash-separated (`..\\secrets`) forms. Benign support paths never contain
+# a `..` segment, so this is zero-FP.
+_TRAVERSAL_RE = re.compile(r"(?:^|[/\\])\.\.(?:[/\\]|$)")
+
+
+def _has_traversal(raw: str) -> bool:
+    """True if `raw` contains a `..` path segment in any encoded/separator form (fail-closed)."""
+    candidates = [raw]
+    s = raw
+    for _ in range(3):  # peel possibly multi-layer percent-encoding (%252e%252e -> %2e%2e -> ..)
+        try:
+            d = urllib.parse.unquote(s)
+        except Exception:
+            break
+        if d == s:
+            break
+        s = d
+        candidates.append(s)
+    return any(_TRAVERSAL_RE.search(c) for c in candidates)
+
+
 def _matches_any(path: str, globs: Iterable[str]) -> str | None:
     """First matching glob, else None. fnmatch '*' crosses '/', so 'src/**' matches 'src/a/b'.
 
@@ -112,6 +137,8 @@ def path_verdict(path: str, allowlist: Iterable[str], denylist: Iterable[str]) -
       2. allowlist hit -> ALLOW
       3. otherwise      -> DENY (out-of-scope; we never index what we were not told is public)
     """
+    if _has_traversal(path):
+        return PathVerdict(path, False, "path-traversal")
     np = _norm_path(path)
     d = _matches_any(np, denylist)
     if d is not None:
@@ -450,8 +477,16 @@ def _unescape_backslash(text: str) -> list[str]:
     return out
 
 
+def _printable(d: str) -> bool:
+    return bool(d) and sum(c.isprintable() for c in d) / len(d) > 0.8
+
+
 def _decode_layers(text: str) -> list[str]:
-    """Return extra plaintext views by decoding embedded base64 / hex blobs."""
+    """Return extra plaintext views by decoding embedded base64 / hex / base32 blobs.
+
+    base32 (§9.3.5 named-encoding channel): an attacker can base32-encode an injection phrase or a
+    secret; the base32 alphabet [A-Z2-7] is disjoint from a credential SHAPE, so the decode only adds
+    detections for a REAL hidden payload (zero benign FP — base32 of ordinary prose is gibberish)."""
     out: list[str] = []
     for m in re.finditer(r"[A-Za-z0-9+/]{16,}={0,2}", text):
         blob = m.group(0)
@@ -461,7 +496,34 @@ def _decode_layers(text: str) -> list[str]:
         ):
             try:
                 d = dec(blob).decode("utf-8", "ignore")
-                if d and sum(c.isprintable() for c in d) / len(d) > 0.8:
+                if _printable(d):
+                    out.append(d)
+            except Exception:
+                pass
+    # base32 blobs (separate alphabet [A-Z2-7], padded with '=')
+    for m in re.finditer(r"[A-Z2-7]{16,}={0,6}", text):
+        b32 = m.group(0)
+        try:
+            pad = "=" * (-len(b32.rstrip("=")) % 8)
+            d = base64.b32decode(b32.rstrip("=") + pad, casefold=True).decode("utf-8", "ignore")
+            if _printable(d):
+                out.append(d)
+        except Exception:
+            pass
+    return out
+
+
+def _b85_views(text: str) -> list[str]:
+    """Decode base85 / ascii85 blobs (§9.2/§9.3.5 egress soft-leak). _decode_layers only peels
+    base64/hex/base32; a credential emitted as base85 slips the last DLP line. The base85 alphabet
+    spans punctuation rare in prose, so a benign sentence does not decode to a credential SHAPE."""
+    out: list[str] = []
+    for m in re.finditer(r"[A-Za-z0-9!#$%&()*+\-;<=>?@^_`{|}~]{20,}", text):
+        blob = m.group(0)
+        for dec in (base64.b85decode, base64.a85decode):
+            try:
+                d = dec(blob).decode("utf-8", "ignore")
+                if _printable(d):
                     out.append(d)
             except Exception:
                 pass
@@ -534,8 +596,29 @@ def detect_injection(text: str) -> InjectionResult:
     primary = [(_normalize(text), True)]
     derived = [(_normalize(v), False) for v in _decode_layers(text)]
     derived += [(_normalize(v), False) for v in _caesar_views(text)]
+    # percent-encoded injection (§9.3.5 named-encoding channel): entry normalization never
+    # percent-decoded before, so `%69%67%6e%6f%72%65 ...` slipped detect_injection (the egress side
+    # already percent-decodes). unquote is ~identity on benign text, so the extra view only adds
+    # detections for a REAL encoded phrase.
+    try:
+        unq = urllib.parse.unquote(text)
+        if unq != text:
+            derived.append((_normalize(unq), False))
+    except Exception:
+        pass
     cats: set[str] = set()
     matched: list[str] = []
+    # de-spaced view (§9.3.5 interleaved/punctuation-split smuggling): `i-g-n-o-r-e p-r-e-v-i-o-u-s`
+    # normalizes to single-char tokens, so word-aligned phrase matching misses it. Removing ALL
+    # spaces and substring-matching ONLY long phrases (de-spaced length >= 12) catches the
+    # interleaved form while staying zero-FP (a 12+ char benign concatenation spelling an injection
+    # phrase is astronomically unlikely).
+    despaced = _normalize(text).replace(" ", "")
+    for ph in INJECTION_PHRASES:
+        dp = ph.replace(" ", "")
+        if len(dp) >= 12 and dp in despaced:
+            cats.add("instruction_override")
+            matched.append(ph)
     for view, fuzzy in primary + derived:
         for ph in INJECTION_PHRASES:
             if _phrase_present(view, ph, fuzzy=fuzzy):
@@ -665,6 +748,15 @@ def egress_leak_verdict(text: str) -> LeakVerdict:
     for ev in _unescape_backslash(text):
         encoded_views.append(ev)
         encoded_views += list(_decode_layers(ev))
+    # stage-2 (§9.2/§9.3.5): two egress channels the decoders above miss.
+    #   (B85) base85 / ascii85 secret blob — disjoint alphabet from base64/hex/base32, so a
+    #         credential emitted as base85 slipped the LAST DLP line. Decode + re-scan.
+    #   (ROT) rotN / ROT13 cipher — _caesar_views existed only on the ENTRY (detect_injection) path;
+    #         on egress a secret/PII run through ROT13 ("FX_YVIR_PNANEL_...") matched no shape. Add
+    #         every Caesar rotation as a decoded view. FP-safe: a credential SHAPE never appears in a
+    #         rotated benign sentence, and a forward HIGH-entropy key is already caught un-rotated.
+    encoded_views += list(_b85_views(text))
+    encoded_views += list(_caesar_views(text))
     for v in encoded_views:
         if not v or v == text:
             continue

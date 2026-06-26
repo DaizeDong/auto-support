@@ -55,7 +55,7 @@ import grounding as GR  # noqa: E402
 # §9.2 structured algorithm / proprietary canary: all-caps + underscores. NFKC of its fullwidth
 # form is the all-caps skeleton that the canary shape rule catches cleanly (no lowercase tail).
 _ALGO_CANARY = "PROPRIETARY_RANKING_FORMULA_CANARY"
-_LIVE_CANARY = "SK_LIVE_CANARY_a1b2c3d4e5f6"
+_LIVE_CANARY = "FAKE_REDTEAM_STRIPE_CANARY_A1B2C3D4E5F6"
 
 
 def _to_fullwidth(s: str) -> str:

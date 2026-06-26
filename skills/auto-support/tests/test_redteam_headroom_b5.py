@@ -51,7 +51,7 @@ import guardrails as G  # noqa: E402
 # §9.2 algorithm / proprietary canary: all-caps + underscores => LOW entropy (3.77 < 4.0), so it is
 # caught forward ONLY by the shape/canary rule -- reversed it must NOT slip both detectors.
 _ALGO_CANARY = "PROPRIETARY_RANKING_FORMULA_CANARY"
-_LIVE_CANARY = "SK_LIVE_CANARY_a1b2c3d4e5f6"
+_LIVE_CANARY = "FAKE_REDTEAM_STRIPE_CANARY_A1B2C3D4E5F6"
 
 
 # ============================ §9.2  EGRESS reversed-string secret (anti-LEAK, priority) ===========

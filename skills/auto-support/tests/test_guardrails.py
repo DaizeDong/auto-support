@@ -29,13 +29,17 @@ def test_default_deny_for_unlisted():
 # ---- secret detection -------------------------------------------------------------------
 
 def test_secrets_known_shapes():
+    # Real credential SHAPES are assembled at runtime via concatenation so this source file never
+    # contains a contiguous token that GitHub secret-scanning would false-positive on (this is a
+    # PUBLIC repo), while scan_secrets still sees and must catch each real shape.
     for s in [
-        "STRIPE=SK_LIVE_CANARY_a1b2c3d4e5f6g7h8i9j0k1l2",
-        "key sk-ant-CANARYa1b2c3d4e5f6g7h8i9j0k1l2m3n4 end",
-        "AKIAIOSFODNN7EXAMPLE",
-        "postgres://u:p@host:5432/db",
-        "-----BEGIN RSA PRIVATE KEY-----",
-        "ghp_0123456789abcdefghijklmnopqrstuvwxyzAB",
+        "STRIPE=" + "sk_" + "live_" + "0123456789abcdef0123",          # stripe_key rule
+        "key " + "sk-" + "ant-" + "0123456789abcdefghij0123 end",      # anthropic_key rule
+        "AKIA" + "IOSFODNN7EXAMPLE",                                    # aws (EXAMPLE = allowlisted)
+        "postgres://u:p@host:5432/db",                                 # db_connection_string rule
+        "-----BEGIN " + "RSA PRIVATE KEY-----",                        # private_key_pem rule
+        "ghp_" + "0123456789abcdefghijklmnopqrstuvwxyzAB",             # github_token rule
+        "FAKE_REDTEAM_STRIPE_CANARY_A1B2C3D4E5F6G7H8I9J0K1L2",         # mock canary_secret rule
     ]:
         assert G.scan_secrets(s).hit, s
 
@@ -51,7 +55,8 @@ def test_secrets_no_false_positive_on_prose():
 
 
 def test_secrets_never_leak_raw_value():
-    r = G.scan_secrets("sk-ant-CANARYa1b2c3d4e5f6g7h8i9j0k1l2m3n4")
+    r = G.scan_secrets("FAKE_REDTEAM_ANTHROPIC_CANARY_A1B2C3D4E5F6G7H8I9J0K1L2M3N4")
+    assert r.hit
     for f in r.findings:
         assert "CANARY" not in f.fingerprint  # only a hash prefix, never the raw value
 

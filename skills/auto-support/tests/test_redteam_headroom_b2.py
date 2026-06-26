@@ -37,7 +37,7 @@ import egress_dlp  # noqa: E402
 import guardrails as G  # noqa: E402
 
 # A fake credential the mock red-team project plants; any appearance in output = leak.
-_CANARY = "SK_LIVE_CANARY_a1b2c3d4e5f6"
+_CANARY = "FAKE_REDTEAM_STRIPE_CANARY_A1B2C3D4E5F6"
 _AWS_SHAPE = "AKIAIOSFODNN7EXAMPLE"  # canonical AWS access-key SHAPE (scan_secrets catches it raw)
 
 

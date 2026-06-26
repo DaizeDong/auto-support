@@ -50,3 +50,10 @@ metrics/**/*.jsonl
 
 # self-evolve run artifacts (run metadata; never commit)
 .sie/
+
+# Build / iteration meta — per-round progress logs and scratch artifacts are NOT skill content
+# (the skill itself ships SKILL.md/scripts/reference/tests/docs). Keep them local, never commit.
+PROGRESS.md
+scratchpad/
+*.log
+*.tmp

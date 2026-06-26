@@ -22,7 +22,7 @@ runbooks/ secret-rotation.md new-machine.md incident-response.md
 {
   "schema_version": 1,
   "product_slug": "tokenreply",
-  "product_root": "C:/path/to/product/repo",
+  "product_root": "<PRODUCT_ROOT>",         // placeholder; per-machine path resolved by apply.py (self-contained, E5)
   "index_allowlist": ["README*","docs/**","public-faq/**","CHANGELOG*","examples/**","**/*.example"],
   "secret_denylist": ["**/.env","**/.env.*","*.pem","*.key","id_rsa","secrets/**","credentials/**",
                       "vault/**","src/**","internal/**","proprietary/**","algorithms/**",

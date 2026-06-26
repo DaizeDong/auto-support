@@ -37,6 +37,17 @@ NET_TOOLS = {"WebFetch", "WebSearch"}
 _BASH_READ = re.compile(r"\b(cat|head|tail|less|more|sed|awk|grep|rg|strings|xxd|od|base64|cp|mv|type|gc|get-content)\b", re.I)
 _BASH_NET = re.compile(r"\b(curl|wget|nc|netcat|ssh|scp|ftp|telnet|invoke-webrequest|iwr|invoke-restmethod)\b", re.I)
 _BASH_WRITE = re.compile(r"(>>?|\b(rm|del|mv|cp|tee|set-content|out-file|add-content)\b)", re.I)
+# Interpreters / byte-tools that read arbitrary files via code or stdin, bypassing the read-tool
+# path gate (`python -c open('.env')`, `node -e`, `perl/ruby/php -e`, `dd if=.env`, `tr/cut/xargs`).
+# A read-only support bot has NO legitimate use for them -> fail-closed DENY.
+_BASH_INTERP = re.compile(
+    r"\b(python[0-9.]*|py|node|nodejs|deno|bun|perl|ruby|php|rscript|lua|"
+    r"dd|tr|cut|xargs|eval|source|exec)\b", re.I)
+# Input redirection `< path` (stdin read). `tr A-Z a-z < .env`, `while read < .env`. The old write
+# regex only matched `>` so this read channel was invisible -> path-check the redirect target.
+_BASH_INREDIR = re.compile(r"(?<![<0-9])<(?!<)\s*([^\s<>|&;]+)")
+# Innocuous leading commands allowed under default-deny (still token-path-checked below).
+_BASH_SAFE_LEAD = {"echo", "printf", "pwd", "ls", "dir", "cd", "true", "false", "clear", "date"}
 
 
 def _load_policy():
@@ -91,16 +102,27 @@ def main():
             block("bash network command denied (exfiltration risk): %s" % cmd[:80])
         if _BASH_WRITE.search(cmd):
             block("bash write/delete command denied (read-only bot): %s" % cmd[:80])
-        if _BASH_READ.search(cmd):
-            # if it names any denied path, block; if it touches no allowlisted path, block too
-            toks = re.findall(r"[\w./\\\-]+", cmd)
-            for t in toks:
-                if "/" in t or "\\" in t or t.startswith("."):
-                    if not G.path_verdict(t, allowlist, denylist).allowed and re.search(r"[./\\]", t):
-                        block("bash reads a path outside the knowledge boundary: %s" % t)
+        # input redirection `< path` is a read channel -> path-check the target
+        for m in _BASH_INREDIR.finditer(cmd):
+            tgt = m.group(1)
+            if not G.path_verdict(tgt, allowlist, denylist).allowed:
+                block("bash input redirection reads outside the knowledge boundary: %s" % tgt)
+        # interpreters / byte-tools can read arbitrary files via code or stdin -> fail-closed deny
+        if _BASH_INTERP.search(cmd):
+            block("bash interpreter/byte-tool denied (subprocess read bypass): %s" % cmd[:80])
+        # ANY explicit path token outside the boundary is denied (covers cat/head AND ls secrets/)
+        toks = re.findall(r"[\w./\\\-]+", cmd)
+        for t in toks:
+            if ("/" in t or "\\" in t or t.startswith(".")) and re.search(r"[./\\]", t):
+                if not G.path_verdict(t, allowlist, denylist).allowed:
+                    block("bash names a path outside the knowledge boundary: %s" % t)
+        # default-DENY: only an explicit read util (cat/head/...) or an innocuous leading command
+        # (echo/pwd/ls/...) reaches here cleanly; everything else is fail-closed denied. This closes
+        # the previous fail-OPEN tail where an unmatched command was waved through.
+        lead = re.split(r"[\s;|&]+", cmd.strip(), 1)[0].rsplit("/", 1)[-1].rsplit("\\", 1)[-1].lower()
+        if _BASH_READ.search(cmd) or lead in _BASH_SAFE_LEAD:
             allow()
-        # other bash (echo, pwd, etc.) — allow only innocuous; default to allow non-matching
-        allow()
+        block("non-allowlisted bash command -> fail-closed deny: %s" % cmd[:80])
 
     # mcp__discord__post_reply / relay tools etc. are allow-listed at the settings layer;
     # unknown tools here are denied (fail-closed) rather than waved through.

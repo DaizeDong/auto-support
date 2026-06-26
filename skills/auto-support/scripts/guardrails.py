@@ -25,6 +25,7 @@ import base64
 import binascii
 import fnmatch
 import hashlib
+import html
 import math
 import re
 import unicodedata
@@ -252,6 +253,17 @@ INJECTION_PHRASES: tuple[str, ...] = (
     "list your tools", "what tools do you have", "enable debug", "debug mode", "sudo",
     "bypass the filter", "bypass restrictions", "without restrictions", "exfiltrate",
     "print the env", "cat env", "dump the database", "leak", "send me the secret",
+)
+
+# Chat-template / model CONTROL tokens (§9.3.5 special-token injection). These "<|...|>" markers
+# are model control markers that NEVER appear in a legitimate support question; an attacker injects
+# them to break out of spotlighting or start a fake system turn. A pure special-token injection
+# carries no override PHRASE, so the phrase matchers miss it -- this catches it directly on the RAW
+# text. Bare "[INST]" / "<<SYS>>" are intentionally NOT matched (a doc may legitimately mention
+# them); only the unambiguous pipe-delimited family, which is zero-FP on benign content.
+_SPECIAL_TOKEN_RE = re.compile(
+    r"<\|(?:im_start|im_end|endoftext|system|user|assistant|eot_id|"
+    r"start_header_id|end_header_id|begin_of_text)\|>"
 )
 
 # Identity self-claims (must be verified by Discord user-ID allowlist, NEVER by text).
@@ -505,6 +517,11 @@ def detect_injection(text: str) -> InjectionResult:
     if re.search(r"!\[[^\]]*\]\((https?:)?//", text) or re.search(r"\]\(\s*https?://[^)]*\?[^)]*=", text):
         cats.add("exfil_link")
         matched.append("markdown-exfil")
+    # special / chat-template control tokens (§9.3.5): raw-text match -- they are literal markers an
+    # attacker injects, and a pure control-token attack has no override phrase for the matchers above.
+    if _SPECIAL_TOKEN_RE.search(text):
+        cats.add("special_token")
+        matched.append("special-token")
     return InjectionResult(bool(cats), sorted(cats), sorted(set(matched)))
 
 
@@ -569,6 +586,17 @@ def egress_leak_verdict(text: str) -> LeakVerdict:
             encoded_views += list(_decode_layers(unq))
     except Exception:
         pass
+    # batch-4 (§9.2/§9.3.5): HTML numeric character references ("&#83;" / "&#x53;") are a named
+    # encoding channel never html-unescaped before the scan today. html.unescape is ~identity on
+    # benign text -- named/numeric entities decode to ordinary punctuation that holds no credential
+    # shape -- so re-scanning the decoded view only adds detections for REAL shapes (zero benign FP).
+    try:
+        unesc = html.unescape(text)
+        if unesc != text:
+            encoded_views.append(unesc)
+            encoded_views += list(_decode_layers(unesc))
+    except Exception:
+        pass
     for v in encoded_views:
         if not v or v == text:
             continue
@@ -616,7 +644,9 @@ def turn_risk(text: str) -> tuple[float, list[str]]:
     inj = detect_injection(text)
     score = 0.0
     sig: list[str] = []
-    if "instruction_override" in inj.categories or "exfil_link" in inj.categories:
+    # batch-4: special-token / control-token injection is a HARD signal alongside override/exfil.
+    if ("instruction_override" in inj.categories or "exfil_link" in inj.categories
+            or "special_token" in inj.categories):
         score = max(score, 1.0)
         sig.append("injection")
     if "identity_claim" in inj.categories:
@@ -626,6 +656,13 @@ def turn_risk(text: str) -> tuple[float, list[str]]:
     if any(k.casefold() in low for k in _SENSITIVE_PROBE):
         score = max(score, 0.4)
         sig.append("sensitive_probe")
+    # batch-4 escalation BOUNDARY (§4.2(e)): an UNVERIFIED identity-claim PLUS a sensitive-topic
+    # probe in the SAME turn is impersonation-for-access -- a hard escalation, even though neither
+    # half alone (0.6 / 0.4) crosses. Founder-mention-only and single-probe-only stay sub-threshold,
+    # so normal users are not over-escalated.
+    if "identity_claim" in sig and "sensitive_probe" in sig:
+        score = max(score, 1.0)
+        sig.append("impersonation_probe")
     return score, sig
 
 

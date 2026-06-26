@@ -31,5 +31,22 @@ claude.json
 # Composed/live settings written into a product root (this repo ships the TEMPLATE only)
 **/.claude/settings.json
 
+# Secrets gate (config-spec E6 / Mode B) — config-bearing skill: never commit user secrets, keep
+# only templates. Root-anchored secrets/* leaves the tracked red-team fixtures under tests/ alone.
+secrets/*
+!secrets/README.md
+!secrets/.gitkeep
+!*.env.template
+!env.template
+*credentials*.json
+*.key
+*.pem
+!*.key.template
+!*.pem.template
+# Per-product PII ledgers / audit metrics: only templates + schema are tracked.
+products/*/confidential-inventory.md
+!products/*/confidential-inventory.md.template
+metrics/**/*.jsonl
+
 # self-evolve run artifacts (run metadata; never commit)
 .sie/

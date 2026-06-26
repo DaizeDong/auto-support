@@ -62,6 +62,28 @@ git clone https://github.com/DaizeDong/auto-support.git ~/.claude/plugins/auto-s
    `.claude/settings.json`（deny globs + PreToolUse hook）。
 3. 开任何非草稿回复模式前先过红队闸：`cd skills/auto-support && python -m pytest tests/ -q`。
 
+## 配置
+
+`auto-support` 是**带 config 的 skill** —— 机密与每产品知识边界都放在一个**独立、私有**的伴随仓
+（`auto-support-config`，Mode B），每个产品一份隔离的 `policy.json`。完整规范+字段表见
+**[CONFIG.md](CONFIG.md)**（深层布局见 `skills/auto-support/reference/config-schema.md`）。
+
+- **挂载(发现顺序):** `$AUTO_SUPPORT_CONFIG` → `$AUTO_SUPPORT_CONFIG_DIR` →
+  `~/.auto-support-config/` → `~/.config/auto-support-config/`。命中第一个即用；都没有 ⇒ hook 回退到
+  内置 deny 默认（fail-closed）。当前产品由 `$AUTO_SUPPORT_POLICY`（指向 `products/<slug>/policy.json`）
+  或唯一产品选定。
+- **首次配置:**
+  ```bash
+  cd skills/auto-support
+  python scripts/init_config.py --slug <product>   # 生成符合规范的骨架(确定性)
+  export AUTO_SUPPORT_CONFIG=~/.auto-support-config
+  python scripts/verify_config.py                  # doctor:逐项 PASS/FAIL,明确报缺什么
+  ```
+- **切换 config(即插即用):** 把环境变量指向另一个 config 目录即可 —— config 自包含(`product_root`
+  为占位符,无任何写死路径)：`export AUTO_SUPPORT_CONFIG=~/configs/product-a` ↔ `~/configs/product-b`。
+- **密钥:** Mode B —— `secrets/*` 已 gitignore,永不入库；`policy.json` 里的 `@secret:...` 指针由
+  config 仓的 `apply.py` 从 DPAPI 密文注入。请用库外备份。
+
 ## 如何触发
 
 以插件形式部署，按每条 Discord 消息跑 `scripts/answer_pipeline.py`（或 headless `/auto-support

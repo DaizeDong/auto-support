@@ -66,6 +66,30 @@ git clone https://github.com/DaizeDong/auto-support.git ~/.claude/plugins/auto-s
    `skills/auto-support/templates/settings.json.template` (deny globs + PreToolUse hook).
 3. Run the red-team gate before any non-draft reply mode: `cd skills/auto-support && python -m pytest tests/ -q`.
 
+## Config
+
+`auto-support` is **config-bearing** — secrets and the per-product knowledge boundary live in a
+**separate, private** companion repo (`auto-support-config`, Mode B), one isolated `policy.json` per
+product. Full contract + field table: **[CONFIG.md](CONFIG.md)** (deep layout in
+`skills/auto-support/reference/config-schema.md`).
+
+- **Mount (discovery order):** `$AUTO_SUPPORT_CONFIG` → `$AUTO_SUPPORT_CONFIG_DIR` →
+  `~/.auto-support-config/` → `~/.config/auto-support-config/`. First that exists wins; absent ⇒ the
+  hook falls back to its built-in deny defaults (fail-closed). The active product is selected by
+  `$AUTO_SUPPORT_POLICY` (path to `products/<slug>/policy.json`) or the sole product.
+- **First time:**
+  ```bash
+  cd skills/auto-support
+  python scripts/init_config.py --slug <product>   # stamp a conformant skeleton (deterministic)
+  export AUTO_SUPPORT_CONFIG=~/.auto-support-config
+  python scripts/verify_config.py                  # doctor: PASS/FAIL, names what is missing
+  ```
+- **Switch configs (hot-swap):** repoint the env var at another config dir — configs are
+  self-contained (`product_root` is a placeholder, no baked-in paths):
+  `export AUTO_SUPPORT_CONFIG=~/configs/product-a` ↔ `~/configs/product-b`.
+- **Secrets:** Mode B — `secrets/*` is gitignored and never enters git; `@secret:...` pointers in
+  `policy.json` are injected from DPAPI ciphertext by the config repo's `apply.py`. Back up out-of-band.
+
 ## How to invoke
 
 Deployed as a plugin; runs per Discord message via `scripts/answer_pipeline.py` (or `/auto-support

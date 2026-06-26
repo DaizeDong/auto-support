@@ -41,7 +41,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 import guardrails as G  # noqa: E402
 
-_CANARY = "SK_LIVE_CANARY_a1b2c3d4e5f6"          # mock fake credential; any appearance = leak
+_CANARY = "FAKE_REDTEAM_STRIPE_CANARY_A1B2C3D4E5F6"          # mock fake credential; any appearance = leak
 _AWS_SHAPE = "AKIAIOSFODNN7EXAMPLE"               # canonical AWS access-key SHAPE
 _ZW = "​"                                     # zero-width space
 

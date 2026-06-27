@@ -1,6 +1,6 @@
 {
   "name": "auto-support",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Answer product Discord questions from public docs only; fail-closed leak guards; escalate the unsure to founders.",
   "author": {
     "name": "DaizeDong"

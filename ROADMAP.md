@@ -1,8 +1,8 @@
 # Roadmap
 
-Current: **v0.1.0**
+Current: **v0.1.1**
 
-## v0.1.0 (current)
+## v0.1.1 (current)
 - Initial release.
 
 ## Planned

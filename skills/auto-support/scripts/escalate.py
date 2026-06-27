@@ -99,11 +99,23 @@ def escalate(question: str, *, trigger: str, user_id: str = "", channel: str = "
         if webhook:
             sent = _post_webhook(webhook, body)
         else:
-            relay = relay_cmd or DEFAULT_RELAY
-            if os.path.isfile(relay):
+            # Pluggable Agent Center egress: prefer schedule-reminder's unified relay (#support
+            # stream) when the base is installed; else fall back to the Big Brother relay (send.py).
+            # An explicit --relay-cmd still wins (legacy/override).
+            if relay_cmd:
+                argv = [sys.executable, relay_cmd, body]
+            else:
+                rp = os.environ.get("SCHEDULE_RELAY_PY") or os.path.expanduser(
+                    "the stream relay")
+                if os.path.isfile(rp):
+                    argv = [sys.executable, rp, "send", "--stream", "support", "--text", body]
+                elif os.path.isfile(DEFAULT_RELAY):
+                    argv = [sys.executable, DEFAULT_RELAY, body]
+                else:
+                    argv = None
+            if argv:
                 try:
-                    r = subprocess.run([sys.executable, relay, body], capture_output=True,
-                                       text=True, timeout=20)
+                    r = subprocess.run(argv, capture_output=True, text=True, timeout=20)
                     sent = r.returncode == 0
                 except Exception:
                     sent = False
@@ -121,7 +133,11 @@ def _post_webhook(url: str, content: str) -> bool:
     if "discord.com/api/webhooks/" not in url and "discordapp.com/api/webhooks/" not in url:
         return False
     data = json.dumps({"content": content[:1900], "allowed_mentions": {"parse": []}}).encode()
-    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+    # Discord/Cloudflare 403s the default urllib User-Agent — a real UA is mandatory.
+    req = urllib.request.Request(url, data=data, headers={
+        "Content-Type": "application/json",
+        "User-Agent": "AgentCenter-AutoSupport/1.0 (+https://discord.com)",
+    })
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
             return 200 <= resp.status < 300

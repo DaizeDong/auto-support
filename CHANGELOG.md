@@ -2,6 +2,27 @@
 
 All notable changes to this project are documented here (Keep a Changelog style).
 
+## [0.1.2] - 2026-07-06
+### Security (leak-critical — from adversarial review that leaked end-to-end)
+- **egress DLP: ascii85 channel closed.** `_b85_views` matched only the RFC1924 alphabet, so an
+  Adobe-ascii85 blob containing `:` `"` `,` `.` `/` `[` `\` `]` (all valid a85 chars) was never
+  decoded/scanned — a secret emitted as ascii85 slipped the final DLP gate (reproduced end-to-end:
+  a canary ascii85-embedded in a grounded sentence reached the user). Now matches any printable-
+  non-space run and runs both a85/b85 decoders.
+- **egress DLP: short-payload channel closed.** `_decode_layers` required a >=16-char base64 blob,
+  so base64 of a short secret/PII (an SSN -> 15 pre-pad chars) bypassed decode+scan. Threshold
+  lowered to 8 (decoded non-payloads are gibberish that match no credential SHAPE -> no false block).
+- **PreToolUse hook: fail-OPEN tail closed.** The hook ended with an unconditional `allow()` for any
+  unrecognized tool name and empty payload, contradicting its own "unknown tool => deny" contract —
+  a file-reading/shell tool under a non-standard name (e.g. `ReadFile`, `Shell`) or an empty payload
+  was waved through. Now default-DENY unknown tools + empty payloads; only an explicit low-risk
+  built-in allowlist (TodoWrite/TodoRead) passes. Known dangerous tools were already covered.
+- +8 regression tests (`tests/test_leak_hardening.py`); no benign over-block. 105 passed.
+### Notes
+- Known lower-severity headroom (unchanged, tracked): multi-turn `turn_risk`/`conversation_risk` and
+  `spotlight` are implemented+tested but not yet wired into the live `handle()` path; escalation/
+  state-persistence are separate CLIs the model invokes (per SKILL.md), not deterministic in handle().
+
 ## [0.1.1] - 2026-06-27
 ### Changed
 - **Discord egress unified through Agent Center relay**: pushes now prefer schedule-reminder's

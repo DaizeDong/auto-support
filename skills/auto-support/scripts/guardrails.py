@@ -488,7 +488,10 @@ def _decode_layers(text: str) -> list[str]:
     secret; the base32 alphabet [A-Z2-7] is disjoint from a credential SHAPE, so the decode only adds
     detections for a REAL hidden payload (zero benign FP — base32 of ordinary prose is gibberish)."""
     out: list[str] = []
-    for m in re.finditer(r"[A-Za-z0-9+/]{16,}={0,2}", text):
+    # threshold 8 (not 16): base64 of a SHORT secret/PII (e.g. an SSN -> 'MTIzLTQ1LTY3ODk=', 15
+    # pre-pad chars) must still be decoded+scanned. Decoding a benign short run yields gibberish that
+    # matches no secret/PII SHAPE, so a lower threshold adds coverage without false blocks.
+    for m in re.finditer(r"[A-Za-z0-9+/]{8,}={0,2}", text):
         blob = m.group(0)
         for dec in (
             lambda b: base64.b64decode(b + "=" * (-len(b) % 4), validate=False),
@@ -518,8 +521,13 @@ def _b85_views(text: str) -> list[str]:
     base64/hex/base32; a credential emitted as base85 slips the last DLP line. The base85 alphabet
     spans punctuation rare in prose, so a benign sentence does not decode to a credential SHAPE."""
     out: list[str] = []
-    for m in re.finditer(r"[A-Za-z0-9!#$%&()*+\-;<=>?@^_`{|}~]{20,}", text):
-        blob = m.group(0)
+    # Match ANY run of printable non-space ASCII (0x21-0x7e). The old class was the RFC1924 (b85)
+    # alphabet only, so an Adobe ascii85 blob containing ':' '"' ',' '.' '/' '[' '\\' ']' (all valid
+    # a85 chars) was never matched -> a secret emitted as ascii85 slipped the DLP entirely. The broad
+    # class + strict a85/b85 decoders (invalid blobs raise and are skipped) closes that channel; a
+    # decoded non-payload is gibberish that matches no credential SHAPE (no benign false block).
+    for m in re.finditer(r"[\x21-\x7e]{20,}", text):
+        blob = m.group(0).strip("<~>")  # tolerate Adobe <~ ... ~> delimiters
         for dec in (base64.b85decode, base64.a85decode):
             try:
                 d = dec(blob).decode("utf-8", "ignore")

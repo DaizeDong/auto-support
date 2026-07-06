@@ -80,6 +80,8 @@ def main():
         block("unparseable hook payload -> fail-closed deny")
     tool = evt.get("tool_name") or evt.get("tool") or ""
     ti = evt.get("tool_input") or evt.get("input") or {}
+    if not str(tool).strip():
+        block("missing/empty tool name -> fail-closed deny")
     allowlist, denylist = _load_policy()
 
     if tool in WRITE_TOOLS:
@@ -134,8 +136,14 @@ def main():
             allow()
         block("unapproved MCP tool -> fail-closed deny: %s" % tool)
 
-    # Built-in low-risk tools (TodoWrite, etc.) we don't manage -> allow.
-    allow()
+    # DEFAULT-DENY unknown tools (fail-closed, per this file's contract). A file-reading or shell
+    # tool registered under an UNRECOGNIZED name (e.g. "ReadFile", "Shell", a plugin tool) must NOT
+    # slip through the old blanket allow() tail — that was a real bypass. Only an explicit allowlist
+    # of genuinely low-risk built-ins passes; everything else is denied.
+    SAFE_BUILTIN = {"TodoWrite", "TodoRead"}
+    if tool in SAFE_BUILTIN:
+        allow()
+    block("unrecognized tool -> fail-closed deny (default-deny unknown tools): %s" % tool)
 
 
 if __name__ == "__main__":

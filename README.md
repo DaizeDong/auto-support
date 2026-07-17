@@ -1,6 +1,6 @@
 # auto-support
 
-Answer your product's Discord users from public docs only — fail-closed guards keep secrets, algorithms, and PII in; escalate the unsure to founders.
+Answer your product's Discord users from public docs only, fail-closed guards keep secrets, algorithms, and PII in; escalate the unsure to founders.
 
 [![Claude Code Skill](https://img.shields.io/badge/Claude%20Code-Skill-orange?style=flat)](https://docs.anthropic.com/en/docs/claude-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -11,12 +11,12 @@ Answer your product's Discord users from public docs only — fail-closed guards
 
 ---
 
-## ⭐ Read this first — the design philosophy
+## ⭐ Read this first, the design philosophy
 
 A support bot that reads your product's repo is one prompt away from leaking your company. So the
 governing principle is blunt: **its first job is to keep secrets in, not to answer.** Better to
 miss an answer than to leak once. Crucially, a guard *written into a prompt* is a suggestion the
-model can ignore (AWS baseline: told-not-to leaked 3/3; one deterministic hook -> blocked 3/3) —
+model can ignore (AWS baseline: told-not-to leaked 3/3; one deterministic hook -> blocked 3/3) ,
 so every guarantee here lives **outside** the model: `permissions.deny` + a fail-closed
 `PreToolUse` hook + stdlib detection + an egress DLP gate. The model literally cannot open a
 secret file, so it cannot leak one.
@@ -34,7 +34,7 @@ founder-escalation when unsure. MVP replies are human-reviewed drafts / relay, n
 **Isn't:** a general chatbot, a code explainer, or anything that reads source/secrets to "be
 helpful". Out-of-allowlist questions are refused and escalated, never answered from memory.
 
-## How it works — four fail-closed gates
+## How it works, four fail-closed gates
 
 ```
 Discord msg ─▶ entry (injection+intent, spotlighted) ─▶ retrieval (allowlist only, secret-scrubbed)
@@ -68,7 +68,7 @@ git clone https://github.com/DaizeDong/auto-support.git ~/.claude/plugins/auto-s
 
 ## Config
 
-`auto-support` is **config-bearing** — secrets and the per-product knowledge boundary live in a
+`auto-support` is **config-bearing**, secrets and the per-product knowledge boundary live in a
 **separate, private** companion repo (`auto-support-config`, Mode B), one isolated `policy.json` per
 product. Full contract + field table: **[CONFIG.md](CONFIG.md)** (deep layout in
 `skills/auto-support/reference/config-schema.md`).
@@ -84,10 +84,10 @@ product. Full contract + field table: **[CONFIG.md](CONFIG.md)** (deep layout in
   export AUTO_SUPPORT_CONFIG=~/.auto-support-config
   python scripts/verify_config.py                  # doctor: PASS/FAIL, names what is missing
   ```
-- **Switch configs (hot-swap):** repoint the env var at another config dir — configs are
+- **Switch configs (hot-swap):** repoint the env var at another config dir, configs are
   self-contained (`product_root` is a placeholder, no baked-in paths):
   `export AUTO_SUPPORT_CONFIG=~/configs/product-a` ↔ `~/configs/product-b`.
-- **Secrets:** Mode B — `secrets/*` is gitignored and never enters git; `@secret:...` pointers in
+- **Secrets:** Mode B, `secrets/*` is gitignored and never enters git; `@secret:...` pointers in
   `policy.json` are injected from DPAPI ciphertext by the config repo's `apply.py`. Back up out-of-band.
 
 ## How to invoke
@@ -103,7 +103,7 @@ turn returns exactly one neutral line (`这个问题我无法确定，已转交�
 ## Limitations
 
 MVP is draft/relay (no auto-post until the red-team suite passes on the real product). No vector
-store yet (precise Read/Grep grounding). On bare Windows there is no OS sandbox layer — run under
+store yet (precise Read/Grep grounding). On bare Windows there is no OS sandbox layer, run under
 WSL2/devcontainer for full defense depth. The full faithfulness judge LLM is an integration seam.
 
 ## Languages

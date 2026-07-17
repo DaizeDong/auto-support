@@ -138,7 +138,7 @@ def main():
 
     # DEFAULT-DENY unknown tools (fail-closed, per this file's contract). A file-reading or shell
     # tool registered under an UNRECOGNIZED name (e.g. "ReadFile", "Shell", a plugin tool) must NOT
-    # slip through the old blanket allow() tail — that was a real bypass. Only an explicit allowlist
+    # slip through the old blanket allow() tail, that was a real bypass. Only an explicit allowlist
     # of genuinely low-risk built-ins passes; everything else is denied.
     SAFE_BUILTIN = {"TodoWrite", "TodoRead"}
     if tool in SAFE_BUILTIN:

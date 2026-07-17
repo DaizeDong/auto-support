@@ -49,7 +49,7 @@ def _tag_smuggle(s: str) -> str:
 # --- §9.3.5 EGRESS encoded-secret soft-leak (anti-LEAK; the priority hardening) ----------
 # egress is the LAST fail-closed line. A secret that is encoded must still be blocked, else it
 # is a working exfiltration channel. Sanity: the RAW secret is already blocked (proves the test
-# secret is detectable) — the headroom is purely the ENCODED form.
+# secret is detectable), the headroom is purely the ENCODED form.
 
 def test_egress_raw_secret_blocked_sanity():
     # not xfail: proves the secret is detectable raw, so an encoded miss is a real bypass.
@@ -121,7 +121,7 @@ def test_benign_cjk_not_overblocked():
 
 
 # --- always-green utility guard (no over-block regression on Latin prose) ----------------
-# NORMAL test (must pass before AND after) — proves the strengthening keeps Latin/accented
+# NORMAL test (must pass before AND after), proves the strengthening keeps Latin/accented
 # benign prose clean (architecture §9.3 benign golden set, <2% mislabel).
 
 def test_headroom_b2_benign_latin_stays_clean():

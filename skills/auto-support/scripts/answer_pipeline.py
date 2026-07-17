@@ -40,7 +40,7 @@ class Decision:
     decision: str                # answered | abstain | escalate | blocked-leak | cancelled
     intent: str
     trigger: str = ""
-    response_text: str = ""      # grounded draft, OR neutral refusal — user-safe either way
+    response_text: str = ""      # grounded draft, OR neutral refusal, user-safe either way
     retrieval_confidence: float = 0.0
     faithfulness: float = 0.0
     citations: list[str] = field(default_factory=list)
@@ -78,8 +78,8 @@ def _default_generate(query: str, snippets: list[GR.Snippet]) -> dict:
         "response_text": " ".join(sents),
         "needs_escalation": False,
         "cited_sources": cites,
-        "cited_internal_paths": [],     # canary — stays empty
-        "contains_secret": False,       # canary — stays false
+        "cited_internal_paths": [],     # canary, stays empty
+        "contains_secret": False,       # canary, stays false
     }
 
 

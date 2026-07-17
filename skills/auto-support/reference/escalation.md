@@ -1,4 +1,4 @@
-# Escalation — the one and only fallback action
+# Escalation, the one and only fallback action
 
 When the bot is not allowed or not able to answer, the ONLY thing it may do is escalate. This is
 codified abstention: `scripts/escalate.py` makes "escalate" an observable, de-bounced action so

@@ -39,7 +39,7 @@ runbooks/ secret-rotation.md new-machine.md incident-response.md
 }
 ```
 `@secret:...` are pointers; real values come from DPAPI ciphertext in `secrets/` and are injected
-by `apply.py` (which refuses to substitute a missing placeholder — mechanism, not memory).
+by `apply.py` (which refuses to substitute a missing placeholder, mechanism, not memory).
 
 ## Mode B hard rules
 Discord bot token / relay webhook / any LLM key -> Mode B (gitignore + DPAPI). These are in the

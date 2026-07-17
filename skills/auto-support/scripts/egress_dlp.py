@@ -49,7 +49,7 @@ def _valid_schema(ans: dict) -> list[str]:
         errs.append("response_text-missing")
     if not isinstance(ans.get("cited_sources", []), list):
         errs.append("cited_sources-type")
-    # canary fields — their whole job is to be tripped by a misbehaving generator
+    # canary fields, their whole job is to be tripped by a misbehaving generator
     if ans.get("cited_internal_paths"):
         errs.append("canary:cited_internal_paths-nonempty")
     if ans.get("contains_secret", False):

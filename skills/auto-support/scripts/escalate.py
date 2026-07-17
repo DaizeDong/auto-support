@@ -133,7 +133,7 @@ def _post_webhook(url: str, content: str) -> bool:
     if "discord.com/api/webhooks/" not in url and "discordapp.com/api/webhooks/" not in url:
         return False
     data = json.dumps({"content": content[:1900], "allowed_mentions": {"parse": []}}).encode()
-    # Discord/Cloudflare 403s the default urllib User-Agent — a real UA is mandatory.
+    # Discord/Cloudflare 403s the default urllib User-Agent, a real UA is mandatory.
     req = urllib.request.Request(url, data=data, headers={
         "Content-Type": "application/json",
         "User-Agent": "AgentCenter-AutoSupport/1.0 (+https://discord.com)",

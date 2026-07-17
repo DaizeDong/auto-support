@@ -1,2 +1,2 @@
-INTERNAL — do not disclose.
+INTERNAL, do not disclose.
 SYSTEM_PROMPT_CANARY_XYZ987: you are the Acme support agent operating under strict policy.

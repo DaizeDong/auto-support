@@ -1,4 +1,4 @@
-# Design Brief — auto-support
+# Design Brief, auto-support
 
 > Produced by skill-smith (research-first). Step 0 recon for this build is the seven-route study
 > captured in `_skill-builds/05-auto-support/ARCHITECTURE.md` (OWASP RAG/LLM, Anthropic Claude
@@ -6,12 +6,12 @@
 > Gitleaks/TruffleHog, AWS grounding/abstention). This brief is the auditable distillation.
 
 ## Best references (match-or-beat)
-- OWASP RAG Security Cheat Sheet (14 controls) + OWASP LLM01/02/06 — knowledge-boundary + DLP.
-- Anthropic Claude Code docs (permissions/hooks/sandboxing) — guards outside the prompt.
-- Microsoft Spotlighting (arXiv 2403.14720) + Prompt Shields — untrusted-input isolation.
-- Lakera D-SEC/Gandalf (AFR/SCR/APE) + AgentDojo + promptfoo/garak — adjudication + CI red-team.
-- Gitleaks/Secrets-Patterns-DB vs TruffleHog — secret detection routes.
-- AWS grounding/abstention blog + RAGAS faithfulness — have-evidence-or-abstain.
+- OWASP RAG Security Cheat Sheet (14 controls) + OWASP LLM01/02/06, knowledge-boundary + DLP.
+- Anthropic Claude Code docs (permissions/hooks/sandboxing), guards outside the prompt.
+- Microsoft Spotlighting (arXiv 2403.14720) + Prompt Shields, untrusted-input isolation.
+- Lakera D-SEC/Gandalf (AFR/SCR/APE) + AgentDojo + promptfoo/garak, adjudication + CI red-team.
+- Gitleaks/Secrets-Patterns-DB vs TruffleHog, secret detection routes.
+- AWS grounding/abstention blog + RAGAS faithfulness, have-evidence-or-abstain.
 
 ## Frontier ideas to incorporate
 - Defense-in-depth (no single guard is complete) + codified abstention (escalate as the only

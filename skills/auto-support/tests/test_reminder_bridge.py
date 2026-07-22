@@ -6,8 +6,8 @@ import pytest
 
 import reminder_bridge as RB
 
-BASE = os.path.expanduser("the reminder base")
-pytestmark = pytest.mark.skipif(not os.path.isfile(BASE), reason="schedule-reminder base not installed")
+BASE = RB.REMINDER_PY
+pytestmark = pytest.mark.skipif(not os.path.isfile(BASE), reason="reminder base not installed")
 
 
 @pytest.fixture()

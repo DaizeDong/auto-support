@@ -19,8 +19,9 @@ asks for a human. Any one -> escalate.
   (path:line) travel, never source text or secrets.
 
 ## Transport
-Default relay = `the notifier` (machine Big-Brother bot). A per-product
-webhook may override; webhook host is restricted to `discord.com/api/webhooks/` (narrow egress,
+Default relay = a local notifier script (config `AUTO_SUPPORT_NOTIFIER`, default
+`~/.local/notifier.py`). A per-product webhook may override; webhook host is restricted to
+`discord.com/api/webhooks/` (narrow egress,
 no arbitrary outbound). `--dry-run` reports as delivered with no side effect (for tests).
 
 ## Tuning (conservative start)

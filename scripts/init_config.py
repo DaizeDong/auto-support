@@ -110,7 +110,7 @@ def policy_skeleton(slug):
         "confidence": {"retrieval_min": 0.7, "faithfulness_min": 0.7, "high_band": 0.9,
                        "self_consistency_samples": 3},
         "escalation": {"founder_channel": "@secret:founder_channel",
-                       "relay_cmd": "the notifier",
+                       "relay_cmd": "~/.local/notifier.py",
                        "dedup_window_sec": 14400, "group_wait_sec": 30,
                        "critical_topics": ["suspected_leak", "credential_hit", "injection"]},
         "reply_mode": "draft_human_review",

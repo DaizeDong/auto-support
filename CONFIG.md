@@ -39,7 +39,7 @@ If nothing resolves, the deterministic `pretooluse_hook.py` falls back to its bu
 | `index_allowlist` | string[] (globs) | yes | `["README*","docs/**","public-faq/**"]` |
 | `secret_denylist` | string[] (globs) | yes | `["**/.env","src/**","secrets/**","**/CLAUDE.md"]` |
 | `confidence` | object | yes | `{"retrieval_min":0.7,"faithfulness_min":0.7,"high_band":0.9,"self_consistency_samples":3}` |
-| `escalation` | object | yes | `{"founder_channel":"@secret:founder_channel","relay_cmd":"the notifier","dedup_window_sec":14400,"group_wait_sec":30,"critical_topics":["suspected_leak"]}` |
+| `escalation` | object | yes | `{"founder_channel":"@secret:founder_channel","relay_cmd":"~/.local/notifier.py","dedup_window_sec":14400,"group_wait_sec":30,"critical_topics":["suspected_leak"]}` |
 | `reply_mode` | enum | yes | `"draft_human_review"` \| `"relay_only"` \| `"auto_post"` |
 | `approver_user_ids` | string[] | no | `["@secret:approver_user_ids"]` |
 | `discord` | object | yes | `{"guild_id":"<DISCORD_GUILD_ID>","intents":["Guilds","GuildMessages"],"support_channels":["@secret:support_channels"],"trigger":["mention","reply","support_channel"]}` |

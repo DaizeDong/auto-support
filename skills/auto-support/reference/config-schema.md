@@ -28,7 +28,7 @@ runbooks/ secret-rotation.md new-machine.md incident-response.md
                       "vault/**","src/**","internal/**","proprietary/**","algorithms/**",
                       "**/customer_data/**","**/*.pii.*","**/CLAUDE.md",".git/**"],
   "confidence": { "retrieval_min":0.7,"faithfulness_min":0.7,"high_band":0.9,"self_consistency_samples":3 },
-  "escalation": { "founder_channel":"@secret:...","relay_cmd":"the notifier",
+  "escalation": { "founder_channel":"@secret:...","relay_cmd":"~/.local/notifier.py",
                   "dedup_window_sec":14400,"group_wait_sec":30,
                   "critical_topics":["suspected_leak","credential_hit","injection"] },
   "reply_mode": "draft_human_review",        // draft_human_review | relay_only | (later) auto_post

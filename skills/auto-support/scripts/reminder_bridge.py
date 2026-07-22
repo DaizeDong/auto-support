@@ -26,9 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import guardrails as G  # noqa: E402
 
 # Resolve the base CLI. Override with AUTO_SUPPORT_REMINDER_PY for tests / non-default installs.
-DEFAULT_REMINDER = os.path.expanduser(
-    "the reminder base"
-)
+DEFAULT_REMINDER = os.path.expanduser("~/.local/reminder.py")
 REMINDER_PY = os.environ.get("AUTO_SUPPORT_REMINDER_PY", DEFAULT_REMINDER)
 
 

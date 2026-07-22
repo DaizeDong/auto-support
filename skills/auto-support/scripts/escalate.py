@@ -3,8 +3,9 @@
 
 Architecture: when the bot is not allowed or not able to answer, the ONLY thing it may do is
 escalate. This module makes "escalate" an observable, de-bounced action so relay never becomes
-an alert storm (which collapses founder ack-rate). It reuses the machine's Discord relay
-(`the notifier`) by default; a per-product webhook can override it.
+an alert storm (which collapses founder ack-rate). It shells out to a local notifier script
+(config `AUTO_SUPPORT_NOTIFIER`, default `~/.local/notifier.py`) by default; a per-product
+webhook can override it.
 
 SRE-style alert governance (architecture 4.3):
   - dedup/group: identical (topic,user,intent) inside the cooldown window is suppressed
@@ -27,7 +28,7 @@ from dataclasses import dataclass
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import guardrails as G  # noqa: E402
 
-DEFAULT_RELAY = os.path.expanduser("the notifier")
+DEFAULT_RELAY = os.path.expanduser(os.environ.get("AUTO_SUPPORT_NOTIFIER", "~/.local/notifier.py"))
 DEFAULT_STATE = os.path.join(
     os.environ.get("AUTO_SUPPORT_STATE_DIR", os.path.expanduser("~/.auto-support")),
     "escalation_state.json",
@@ -99,15 +100,15 @@ def escalate(question: str, *, trigger: str, user_id: str = "", channel: str = "
         if webhook:
             sent = _post_webhook(webhook, body)
         else:
-            # Pluggable Agent Center egress: prefer schedule-reminder's unified relay (#support
-            # stream) when the base is installed; else fall back to the Big Brother relay (send.py).
-            # An explicit --relay-cmd still wins (legacy/override).
+            # Pluggable egress: prefer an external stream relay (e.g. a scheduler/notification
+            # hub's unified relay) when SCHEDULE_RELAY_PY points at one; else fall back to the
+            # notifier (DEFAULT_RELAY). An explicit --relay-cmd still wins (override).
             if relay_cmd:
                 argv = [sys.executable, relay_cmd, body]
             else:
-                rp = os.environ.get("SCHEDULE_RELAY_PY") or os.path.expanduser(
-                    "the stream relay")
-                if os.path.isfile(rp):
+                rp = os.environ.get("SCHEDULE_RELAY_PY", "")
+                rp = os.path.expanduser(rp) if rp else ""
+                if rp and os.path.isfile(rp):
                     argv = [sys.executable, rp, "send", "--stream", "support", "--text", body]
                 elif os.path.isfile(DEFAULT_RELAY):
                     argv = [sys.executable, DEFAULT_RELAY, body]

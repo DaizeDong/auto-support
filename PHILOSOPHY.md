@@ -25,7 +25,7 @@ is the second job, and a distant second.** Better to miss an answer than to leak
 - **Symptom patch:** trust the model's confidence and let it answer from memory.
 - **Root cause:** LLMs are confidently wrong; token-probability is not groundedness.
 - **Decision it produced:** two independent gates (retrieval-confidence × faithfulness), every
-  claim must cite an allowlisted source, and when either fails the bot does exactly one thing ,
+  claim must cite an allowlisted source, and when either fails the bot does exactly one thing,
   escalate to the founder with a neutral refusal that never reveals why.
 
 ## P4, Untrusted input is data, not instructions (and identity is never text)

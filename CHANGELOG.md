@@ -13,7 +13,7 @@ All notable changes to this project are documented here (Keep a Changelog style)
   so base64 of a short secret/PII (an SSN -> 15 pre-pad chars) bypassed decode+scan. Threshold
   lowered to 8 (decoded non-payloads are gibberish that match no credential SHAPE -> no false block).
 - **PreToolUse hook: fail-OPEN tail closed.** The hook ended with an unconditional `allow()` for any
-  unrecognized tool name and empty payload, contradicting its own "unknown tool => deny" contract ,
+  unrecognized tool name and empty payload, contradicting its own "unknown tool => deny" contract,
   a file-reading/shell tool under a non-standard name (e.g. `ReadFile`, `Shell`) or an empty payload
   was waved through. Now default-DENY unknown tools + empty payloads; only an explicit low-risk
   built-in allowlist (TodoWrite/TodoRead) passes. Known dangerous tools were already covered.

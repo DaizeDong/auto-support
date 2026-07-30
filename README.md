@@ -16,7 +16,7 @@ Answer your product's Discord users from public docs only, fail-closed guards ke
 A support bot that reads your product's repo is one prompt away from leaking your company. So the
 governing principle is blunt: **its first job is to keep secrets in, not to answer.** Better to
 miss an answer than to leak once. Crucially, a guard *written into a prompt* is a suggestion the
-model can ignore (AWS baseline: told-not-to leaked 3/3; one deterministic hook -> blocked 3/3) ,
+model can ignore (AWS baseline: told-not-to leaked 3/3; one deterministic hook -> blocked 3/3),
 so every guarantee here lives **outside** the model: `permissions.deny` + a fail-closed
 `PreToolUse` hook + stdlib detection + an egress DLP gate. The model literally cannot open a
 secret file, so it cannot leak one.

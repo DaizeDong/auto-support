@@ -46,8 +46,7 @@ If nothing resolves, the deterministic `pretooluse_hook.py` falls back to its bu
 | `schedule_reminder` | object | no | `{"source":"auto-support","db_path":"@secret:schedule_db_path"}` |
 
 `@secret:...` are **pointers**, never plaintext. Real values are DPAPI ciphertext in `secrets/` and
-are injected by the config repo's `apply.py` (which refuses to substitute a missing placeholder ,
-mechanism, not memory). `<PRODUCT_ROOT>` / `<DISCORD_GUILD_ID>` / `<DOCS_URL>` are per-machine
+are injected by the config repo's `apply.py` (which refuses to substitute a missing placeholder; mechanism, not memory). `<PRODUCT_ROOT>` / `<DISCORD_GUILD_ID>` / `<DOCS_URL>` are per-machine
 placeholders resolved at apply time (keeps the committed policy self-contained, E5).
 
 Companion repo layout (one isolated dir per product):

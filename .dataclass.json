@@ -15,7 +15,7 @@
     "",
     "Enforced by tools/data_boundary.py in .githooks and in CI."
   ],
-  "_audited": "2026-07-13 -- swept for real-run output written back into this repo (every open(...,'a'), json.dump, write_text; every tracked *.jsonl / state / cache / report). This skill's writers all resolve OUTSIDE the repo, or it has no writers. No DATA-class path found. An empty list here is a CONCLUSION, not a default: it distinguishes 'audited, nothing to declare' from 'nobody has looked'.",
+  "_audited": "2026-07-31 RE-AUDIT (supersedes the 2026-07-13 sweep, which recorded an empty declaration for this repo). The earlier sweep asked only whether shipped code appends to a TRACKED file here. That question is too narrow: it clears every path that is gitignored, and .gitignore is advisory -- `git add -f` walks straight through it, which is the whole reason declarations exist. This pass asked instead whether shipped code or shipped docs can put REAL-RUN OUTPUT at a repo-relative path at all. ANSWER: it produces real-run output (escalate.py keeps escalation state: per-incident fingerprints, severity and redacted text) but NOT at any repo-relative path. The state file is $AUTO_SUPPORT_STATE_DIR else ~/.auto-support/escalation_state.json, and the config repo resolves from $AUTO_SUPPORT_CONFIG else ~/.auto-support-config -- neither resolver has a cwd-relative or in-repo branch. The metrics/**/*.jsonl and products/*/confidential-inventory.md lines in this repo's .gitignore describe the CONFIG repo's layout (scripts/init_config.py writes them into the generated config repo) and were copied here defensively; no shipped code writes either path in this repo. Nothing to declare, and that is a conclusion, not a default.",
   "data": [],
   "data_sealed": [],
   "fixture": [],

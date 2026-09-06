@@ -133,7 +133,10 @@ def _post_webhook(url: str, content: str) -> bool:
     # only allow the Discord webhook host (narrow egress; no arbitrary outbound)
     if "discord.com/api/webhooks/" not in url and "discordapp.com/api/webhooks/" not in url:
         return False
-    data = json.dumps({"content": content[:1900], "allowed_mentions": {"parse": []}}).encode()
+    if len(content) > 1900:
+        # a founder reads this in Discord: say the body was cut instead of posting a partial
+        content = content[:1900] + ("\n...[truncated, %d chars total]" % len(content))
+    data = json.dumps({"content": content, "allowed_mentions": {"parse": []}}).encode()
     # Discord/Cloudflare 403s the default urllib User-Agent, a real UA is mandatory.
     req = urllib.request.Request(url, data=data, headers={
         "Content-Type": "application/json",
@@ -142,7 +145,10 @@ def _post_webhook(url: str, content: str) -> bool:
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
             return 200 <= resp.status < 300
-    except Exception:
+    except Exception as e:
+        # escalation is the only fallback action: never drop it without a word
+        print("[escalate] webhook post failed (timeout=20s): %s: %s" % (type(e).__name__, e),
+              file=sys.stderr)
         return False
 
 

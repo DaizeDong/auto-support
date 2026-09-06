@@ -91,7 +91,12 @@ def search(root: str, query: str, allowlist: Iterable[str], denylist: Iterable[s
                 continue
             if G.detect_injection(line).suspicious:  # indirect injection hiding in a doc -> skip
                 continue
-            scored.append((-score, rel, i, line.strip()[:400]))
+            txt = line.strip()
+            if len(txt) > 400:
+                # this text is fed to the model as grounding: mark the cut so a
+                # clipped line is not read as a whole line
+                txt = txt[:400] + " ...[line truncated]"
+            scored.append((-score, rel, i, txt))
     # rank by relevance (most query terms matched first), then path/line for determinism
     scored.sort()
     hits: list[Snippet] = []
@@ -103,6 +108,10 @@ def search(root: str, query: str, allowlist: Iterable[str], denylist: Iterable[s
         hits.append(Snippet(rel, i, txt))
         if len(hits) >= max_snippets or budget <= 0:
             break
+    if len(hits) < len(scored):
+        print("[retrieval] grounding capped: %d of %d matching lines returned "
+              "(max_snippets=%d, max_chars=%d)" % (len(hits), len(scored), max_snippets, max_chars),
+              file=sys.stderr)
     return hits
 
 

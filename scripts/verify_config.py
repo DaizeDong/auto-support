@@ -121,6 +121,68 @@ def main():
         check("founder_channel is an @secret pointer (not inlined)",
               fc.startswith("@secret:") or fc == "", "got %r" % fc)
 
+    # ---- registry.json: the config repo's own manifest ----
+    # Found by config_mutation_probe: this file was never named in this script, so
+    # deleting or emptying it left the doctor printing READY. A doctor that says
+    # "conforms" while the manifest it conforms to is missing is worse than silent.
+    if cfg:
+        reg_p = os.path.join(cfg, "registry.json")
+        reg = None
+        if not os.path.isfile(reg_p):
+            check("registry.json present", False, reg_p)
+        else:
+            check("registry.json present", True)
+            try:
+                with open(reg_p, "r", encoding="utf-8-sig") as f:
+                    reg = json.load(f)
+                check("registry.json valid JSON", True)
+            except Exception as e:
+                check("registry.json valid JSON", False, str(e))
+            if isinstance(reg, dict):
+                check("registry.schema_version == 1", reg.get("schema_version") == 1,
+                      "got %r" % reg.get("schema_version"))
+                check("registry.products is a non-empty list",
+                      isinstance(reg.get("products"), list) and len(reg.get("products")) > 0,
+                      "got %r" % type(reg.get("products")).__name__)
+                check("registry.mode is a string", isinstance(reg.get("mode"), str),
+                      "got %r" % type(reg.get("mode")).__name__)
+                check("registry.spec is a string", isinstance(reg.get("spec"), str),
+                      "got %r" % type(reg.get("spec")).__name__)
+            elif reg is not None:
+                check("registry.json is an object", False,
+                      "top level is %s" % type(reg).__name__)
+
+    # ---- product.json: the per-machine half of the policy ----
+    # policy.json carries <PRODUCT_ROOT> as a placeholder on purpose (E5); product.json is
+    # where the real path lives. It was mentioned only in a comment here, and all 23 field
+    # mutations were accepted -- meaning a product.json with no product_root at all passed.
+    prod_p = os.path.join(os.path.dirname(policy), "product.json") if policy else None
+    if prod_p and os.path.isfile(prod_p):
+        prod = None
+        try:
+            with open(prod_p, "r", encoding="utf-8-sig") as f:
+                prod = json.load(f)
+            check("product.json valid JSON", True)
+        except Exception as e:
+            check("product.json valid JSON", False, str(e))
+        if isinstance(prod, dict):
+            check("product.slug is a non-empty string",
+                  isinstance(prod.get("slug"), str) and bool(prod.get("slug")))
+            root = prod.get("product_root")
+            check("product.product_root is a non-empty string",
+                  isinstance(root, str) and bool(root), "got %r" % type(root).__name__)
+            if isinstance(root, str) and root:
+                # The placeholder belongs in policy.json, never here: this file is the
+                # machine-specific half, so an unresolved placeholder means apply.py
+                # never ran and every path downstream is wrong.
+                check("product.product_root is resolved (not the placeholder)",
+                      "<PRODUCT_ROOT>" not in root)
+            check("product.status is a string", isinstance(prod.get("status"), str),
+                  "got %r" % type(prod.get("status")).__name__)
+        elif prod is not None:
+            check("product.json is an object", False,
+                  "top level is %s" % type(prod).__name__)
+
     # gitignore secrets gate (E6) at the config-repo root.
     if cfg:
         gi = os.path.join(cfg, ".gitignore")

@@ -26,12 +26,12 @@ import binascii
 import fnmatch
 import hashlib
 import html
-import math
 import re
 import unicodedata
 import urllib.parse
 from dataclasses import dataclass, field
 from typing import Iterable
+from fleet_guards import secrets as shared_secrets
 
 # --------------------------------------------------------------------------------------
 # 0. Shared helpers
@@ -49,13 +49,7 @@ def _hash_prefix(s: str) -> str:
 
 
 def shannon_entropy(s: str) -> float:
-    if not s:
-        return 0.0
-    counts: dict[str, int] = {}
-    for ch in s:
-        counts[ch] = counts.get(ch, 0) + 1
-    n = float(len(s))
-    return -sum((c / n) * math.log2(c / n) for c in counts.values())
+    return shared_secrets.shannon_entropy(s)
 
 
 # --------------------------------------------------------------------------------------
@@ -153,32 +147,6 @@ def path_verdict(path: str, allowlist: Iterable[str], denylist: Iterable[str]) -
 # 2. Secret / credential detection  (regex high-precision + entropy high-recall)
 # --------------------------------------------------------------------------------------
 
-# (name, pattern). Patterns target known credential SHAPES, so precision is high.
-SECRET_PATTERNS: list[tuple[str, re.Pattern]] = [
-    ("anthropic_key", re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}")),
-    ("openai_key", re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_\-]{20,}")),
-    ("aws_access_key", re.compile(r"\b(?:AKIA|ASIA|AGPA|AIDA)[A-Z0-9]{16}\b")),
-    ("stripe_key", re.compile(r"\b[rs]k_(?:live|test)_[A-Za-z0-9]{16,}")),
-    ("github_token", re.compile(r"\bgh[pousr]_[A-Za-z0-9]{36,}")),
-    ("github_pat_fine", re.compile(r"\bgithub_pat_[A-Za-z0-9_]{40,}")),
-    ("slack_token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}")),
-    ("google_api_key", re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b")),
-    ("discord_bot_token", re.compile(r"\b(?:mfa\.[A-Za-z0-9_\-]{20,}|[A-Za-z0-9_\-]{24}\.[A-Za-z0-9_\-]{6}\.[A-Za-z0-9_\-]{27,40})\b")),
-    ("discord_webhook", re.compile(r"https://(?:ptb\.|canary\.)?discord(?:app)?\.com/api/webhooks/\d+/[A-Za-z0-9_\-]+")),
-    ("jwt", re.compile(r"\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}")),
-    ("private_key_pem", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----")),
-    ("db_connection_string", re.compile(r"\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp)://[^\s:@/]+:[^\s:@/]+@", re.I)),
-    ("generic_assignment", re.compile(
-        r"(?i)\b(?:api[_\-]?key|secret|token|passwd|password|access[_\-]?key|client[_\-]?secret|private[_\-]?key)\b"
-        r"\s*[:=]\s*['\"]?[A-Za-z0-9_\-/+=.]{12,}['\"]?")),
-    # Canary family used by the red-team mock project (uppercase, _CANARY tag).
-    ("canary_secret", re.compile(r"\b[A-Z0-9_]*CANARY[A-Z0-9_]*\b")),
-]
-
-# Tokens worth entropy-checking even when no known shape matches (catches unknown formats).
-_HIGH_ENTROPY_CAND = re.compile(r"[A-Za-z0-9+/=_\-]{20,}")
-
-
 @dataclass
 class Finding:
     rule: str
@@ -196,31 +164,21 @@ class ScanResult:
 
 
 def scan_secrets(text: str, entropy_threshold: float = 4.0) -> ScanResult:
-    """Detect credentials. Regex first (precise), then entropy on residual candidates (recall).
+    """Compatibility result over the shared strict policy; incomplete scans block.
 
-    fail-closed posture: callers treat ANY hit as block. Raw values are never returned.
+    The fingerprint field remains for API compatibility, with a fixed redacted
+    value. A bare password hash must not become a reusable offline guessing target.
     """
     if not text:
         return ScanResult(False)
-    findings: list[Finding] = []
-    matched_spans: list[tuple[int, int]] = []
-    for name, pat in SECRET_PATTERNS:
-        for m in pat.finditer(text):
-            findings.append(Finding(name, _hash_prefix(m.group(0)), m.span()))
-            matched_spans.append(m.span())
-
-    # Entropy pass over candidate tokens NOT already covered by a precise rule.
-    for m in _HIGH_ENTROPY_CAND.finditer(text):
-        s0, s1 = m.span()
-        if any(a <= s0 < b or a < s1 <= b for a, b in matched_spans):
-            continue
-        tok = m.group(0)
-        # words like "transformations" are long but low-entropy; require both length+entropy,
-        # and a mix of character classes so prose doesn't trip it.
-        classes = sum(bool(re.search(p, tok)) for p in (r"[a-z]", r"[A-Z]", r"[0-9]"))
-        if len(tok) >= 24 and shannon_entropy(tok) >= entropy_threshold and classes >= 2:
-            findings.append(Finding("high_entropy_token", _hash_prefix(tok), (s0, s1)))
-    return ScanResult(bool(findings), findings)
+    result = shared_secrets.scan(text, policy="support-egress-v1",
+                                 entropy_threshold=entropy_threshold)
+    if result["state"] == "scan_failed":
+        return ScanResult(True, [Finding("scanner_error", "redacted", (0, 0))])
+    findings = [Finding("generic_assignment" if row["rule_id"] == "credential_assignment"
+                        else row["rule_id"], "redacted", tuple(row["span"]))
+                for row in result["findings"]]
+    return ScanResult(result["state"] != "clean", findings)
 
 
 # --------------------------------------------------------------------------------------

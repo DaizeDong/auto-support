@@ -1,4 +1,4 @@
-# Usage Guide (public)
+# Usage Guide (public synthetic fixture)
 
 ## Pagination
 List endpoints return up to 50 items per page. Use the `cursor` query param to page.

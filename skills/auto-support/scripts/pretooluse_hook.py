@@ -17,10 +17,15 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import sys
+import ntpath
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import guardrails as G  # noqa: E402
+import policy as P  # noqa: E402
+import document_boundary as D  # noqa: E402
 
 DEFAULT_ALLOW = ["README*", "docs/**", "public-faq/**", "CHANGELOG*", "examples/**", "**/*.example"]
 DEFAULT_DENY = ["**/.env", "**/.env.*", "*.pem", "*.key", "id_rsa", "secrets/**", "credentials/**",
@@ -33,34 +38,80 @@ READ_TOOLS = {"Read", "Grep", "Glob", "NotebookRead"}
 WRITE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit", "Update"}
 NET_TOOLS = {"WebFetch", "WebSearch"}
 
-# Bash command fragments that read denied files or reach the network / mutate.
-_BASH_READ = re.compile(r"\b(cat|head|tail|less|more|sed|awk|grep|rg|strings|xxd|od|base64|cp|mv|type|gc|get-content)\b", re.I)
-_BASH_NET = re.compile(r"\b(curl|wget|nc|netcat|ssh|scp|ftp|telnet|invoke-webrequest|iwr|invoke-restmethod)\b", re.I)
-_BASH_WRITE = re.compile(r"(>>?|\b(rm|del|mv|cp|tee|set-content|out-file|add-content)\b)", re.I)
-# Interpreters / byte-tools that read arbitrary files via code or stdin, bypassing the read-tool
-# path gate (`python -c open('.env')`, `node -e`, `perl/ruby/php -e`, `dd if=.env`, `tr/cut/xargs`).
-# A read-only support bot has NO legitimate use for them -> fail-closed DENY.
-_BASH_INTERP = re.compile(
-    r"\b(python[0-9.]*|py|node|nodejs|deno|bun|perl|ruby|php|rscript|lua|"
-    r"dd|tr|cut|xargs|eval|source|exec)\b", re.I)
-# Input redirection `< path` (stdin read). `tr A-Z a-z < .env`, `while read < .env`. The old write
-# regex only matched `>` so this read channel was invisible -> path-check the redirect target.
-_BASH_INREDIR = re.compile(r"(?<![<0-9])<(?!<)\s*([^\s<>|&;]+)")
-# Innocuous leading commands allowed under default-deny (still token-path-checked below).
-_BASH_SAFE_LEAD = {"echo", "printf", "pwd", "ls", "dir", "cd", "true", "false", "clear", "date"}
-
 
 def _load_policy():
     p = os.environ.get("AUTO_SUPPORT_POLICY")
-    if p and os.path.isfile(p):
+    if p:
         try:
-            pol = json.load(open(p, encoding="utf-8"))
-            return (pol.get("index_allowlist", DEFAULT_ALLOW),
-                    pol.get("secret_denylist", DEFAULT_DENY))
-        except Exception:
+            pol = P.load_policy(p)
+            return pol["index_allowlist"], pol["secret_denylist"], P.resolve_product_root(p, pol)
+        except P.PolicyError:
             # fail-closed: an unreadable policy must not silently widen access
             block("policy file unreadable -> fail-closed deny")
-    return DEFAULT_ALLOW, DEFAULT_DENY
+    return DEFAULT_ALLOW, DEFAULT_DENY, Path.cwd().resolve()
+
+
+def _bounded_path(raw, root, cwd, allowlist, denylist, *, directory=False):
+    if (not isinstance(raw, str) or not raw or "\x00" in raw or "~" in raw
+            or G._has_traversal(raw) or any(c in raw for c in "*?[]")):
+        return False
+    path = Path(raw)
+    if (ntpath.splitdrive(raw)[0] or ntpath.isabs(raw)) and not path.is_absolute():
+        return False
+    requested = path if path.is_absolute() else cwd / path
+    try:
+        relative = requested.relative_to(root).as_posix()
+        resolved = requested.resolve().relative_to(root).as_posix()
+    except (OSError, ValueError):
+        return False
+    if directory:
+        relative = relative.rstrip("/") + "/__directory__.md"
+        resolved = resolved.rstrip("/") + "/__directory__.md"
+    return (G.path_verdict(relative, allowlist, denylist).allowed
+            and G.path_verdict(resolved, allowlist, denylist).allowed
+            and D.allowed_document(requested, missing_ok=True, directory=directory))
+
+
+def _search_target(raw, root, cwd, allowlist, denylist):
+    """Directory content searches are allowed only when every file is in scope."""
+    if not isinstance(raw, str) or not raw:
+        return False
+    path = Path(raw)
+    path = path if path.is_absolute() else cwd / path
+    if not _bounded_path(raw, root, cwd, allowlist, denylist, directory=path.is_dir()):
+        return False
+    if path.is_dir():
+        for item in path.rglob("*"):
+            if item.is_file() and not _bounded_path(str(item), root, cwd, allowlist, denylist):
+                return False
+            if item.is_symlink() and item.is_dir():
+                return False
+    return True
+
+
+def _safe_shell_read(command, allowlist, denylist, root, cwd):
+    """Recognize a small literal grammar; never try to parse general shell code."""
+    if not isinstance(command, str) or re.search(r"[\r\n;&|<>$`\\*?{}()\[\]~]", command):
+        return False
+    try:
+        words = shlex.split(command)
+    except ValueError:
+        return False
+    if not words:
+        return False
+    verb, args = words[0], words[1:]
+    if verb in {"pwd", "true", "false"}:
+        return not args
+    if verb == "echo":
+        return all(not arg.startswith("-") for arg in args)
+    if verb not in {"cat", "head", "tail", "ls"} or not args:
+        return False
+    for path in args:
+        if path.startswith("-"):
+            return False
+        if not _bounded_path(path, root, cwd, allowlist, denylist, directory=verb == "ls"):
+            return False
+    return True
 
 
 def block(reason: str):
@@ -73,16 +124,24 @@ def allow():
 
 
 def main():
-    raw = sys.stdin.read()
+    raw = sys.stdin.buffer.read().decode("utf-8-sig", "replace")
     try:
         evt = json.loads(raw) if raw.strip() else {}
     except Exception:
         block("unparseable hook payload -> fail-closed deny")
+    if not isinstance(evt, dict):
+        block("hook payload must be an object")
     tool = evt.get("tool_name") or evt.get("tool") or ""
     ti = evt.get("tool_input") or evt.get("input") or {}
+    if not isinstance(ti, dict) or not isinstance(tool, str):
+        block("tool name and input types are invalid")
     if not str(tool).strip():
         block("missing/empty tool name -> fail-closed deny")
-    allowlist, denylist = _load_policy()
+    allowlist, denylist, root = _load_policy()
+    raw_cwd = evt.get("cwd", os.getcwd())
+    if not isinstance(raw_cwd, str) or not Path(raw_cwd).is_absolute():
+        block("hook cwd must be an absolute directory")
+    cwd = Path(raw_cwd).resolve()
 
     if tool in WRITE_TOOLS:
         block("write/edit tools are denied for a read-only support bot (%s)" % tool)
@@ -90,41 +149,26 @@ def main():
         block("network tools are denied (no outbound exfiltration channel): %s" % tool)
 
     if tool in READ_TOOLS:
-        path = ti.get("file_path") or ti.get("path") or ti.get("pattern") or ""
-        if not path:
-            block("read tool with no resolvable path -> fail-closed deny")
-        v = G.path_verdict(str(path), allowlist, denylist)
-        if not v.allowed:
-            block("path outside knowledge boundary (%s): %s" % (v.reason, path))
+        if tool == "Glob":
+            raw_path, pattern = ti.get("path"), ti.get("pattern")
+            if (not isinstance(pattern, str) or not pattern or G._has_traversal(pattern)
+                    or ntpath.isabs(pattern) or ":" in pattern or "~" in pattern
+                    or not _search_target(raw_path, root, cwd, allowlist, denylist)):
+                block("Glob requires an explicit bounded search root and relative pattern")
+        elif tool == "Grep":
+            if not _search_target(ti.get("path"), root, cwd, allowlist, denylist):
+                block("Grep requires an explicit target whose searched files are all public")
+        else:
+            path = ti.get("file_path") or ti.get("notebook_path") or ti.get("path")
+            if not _bounded_path(path, root, cwd, allowlist, denylist):
+                block("read target is outside the selected public boundary")
         allow()
 
     if tool == "Bash":
         cmd = ti.get("command") or ""
-        if _BASH_NET.search(cmd):
-            block("bash network command denied (exfiltration risk): %s" % cmd[:80])
-        if _BASH_WRITE.search(cmd):
-            block("bash write/delete command denied (read-only bot): %s" % cmd[:80])
-        # input redirection `< path` is a read channel -> path-check the target
-        for m in _BASH_INREDIR.finditer(cmd):
-            tgt = m.group(1)
-            if not G.path_verdict(tgt, allowlist, denylist).allowed:
-                block("bash input redirection reads outside the knowledge boundary: %s" % tgt)
-        # interpreters / byte-tools can read arbitrary files via code or stdin -> fail-closed deny
-        if _BASH_INTERP.search(cmd):
-            block("bash interpreter/byte-tool denied (subprocess read bypass): %s" % cmd[:80])
-        # ANY explicit path token outside the boundary is denied (covers cat/head AND ls secrets/)
-        toks = re.findall(r"[\w./\\\-]+", cmd)
-        for t in toks:
-            if ("/" in t or "\\" in t or t.startswith(".")) and re.search(r"[./\\]", t):
-                if not G.path_verdict(t, allowlist, denylist).allowed:
-                    block("bash names a path outside the knowledge boundary: %s" % t)
-        # default-DENY: only an explicit read util (cat/head/...) or an innocuous leading command
-        # (echo/pwd/ls/...) reaches here cleanly; everything else is fail-closed denied. This closes
-        # the previous fail-OPEN tail where an unmatched command was waved through.
-        lead = re.split(r"[\s;|&]+", cmd.strip(), 1)[0].rsplit("/", 1)[-1].rsplit("\\", 1)[-1].lower()
-        if _BASH_READ.search(cmd) or lead in _BASH_SAFE_LEAD:
-            allow()
-        block("non-allowlisted bash command -> fail-closed deny: %s" % cmd[:80])
+        if not _safe_shell_read(cmd, allowlist, denylist, root, cwd):
+            block("shell command is outside the literal read-only grammar")
+        allow()
 
     # mcp__discord__post_reply / relay tools etc. are allow-listed at the settings layer;
     # unknown tools here are denied (fail-closed) rather than waved through.

@@ -29,8 +29,8 @@ from dataclasses import dataclass, field
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import guardrails as G  # noqa: E402
 
-NEUTRAL_REFUSAL = "这个问题我无法确定，已转交团队跟进。"  # never reveal WHY (no boundary probing)
-_CITE = re.compile(r"^[^:\s]+(?:/[^:\s]+)*:\d+$")
+NEUTRAL_REFUSAL = "这个问题我无法确定，请联系团队进一步确认。"  # no delivery claim without a receipt
+_CITE = re.compile(r"^[^:\r\n\t]+:[1-9][0-9]*$")
 
 
 @dataclass
@@ -47,12 +47,20 @@ def _valid_schema(ans: dict) -> list[str]:
         return ["not-an-object"]
     if not isinstance(ans.get("response_text", None), str):
         errs.append("response_text-missing")
-    if not isinstance(ans.get("cited_sources", []), list):
+    if not isinstance(ans.get("cited_sources"), list):
         errs.append("cited_sources-type")
+    elif any(not isinstance(c, str) for c in ans.get("cited_sources", [])):
+        errs.append("cited_sources-entry-type")
+    if not isinstance(ans.get("needs_escalation"), bool):
+        errs.append("needs_escalation-type")
     # canary fields, their whole job is to be tripped by a misbehaving generator
-    if ans.get("cited_internal_paths"):
+    if not isinstance(ans.get("cited_internal_paths"), list):
+        errs.append("cited_internal_paths-type")
+    elif ans["cited_internal_paths"]:
         errs.append("canary:cited_internal_paths-nonempty")
-    if ans.get("contains_secret", False):
+    if not isinstance(ans.get("contains_secret"), bool):
+        errs.append("contains_secret-type")
+    elif ans["contains_secret"]:
         errs.append("canary:contains_secret-true")
     return errs
 
@@ -73,7 +81,7 @@ def evaluate(answer: dict, allowlist=None, denylist=None, require_citation: bool
 
     # 2) citation integrity: format + inside allowlist (if a policy is provided)
     for c in cites:
-        if not _CITE.match(str(c)):
+        if c != c.strip() or not _CITE.fullmatch(c):
             reasons.append("bad-citation-format:%s" % c)
             continue
         if allowlist is not None:
@@ -96,11 +104,11 @@ def evaluate(answer: dict, allowlist=None, denylist=None, require_citation: bool
 
 
 def main():
-    ans = json.loads(sys.stdin.read() or "{}")
+    ans = json.loads(sys.stdin.buffer.read().decode("utf-8-sig", "replace") or "{}")
     d = evaluate(ans)
     # never print `reasons` to a user-facing channel; here it's a CLI diagnostic only
     print(json.dumps({"allowed": d.allowed, "response_text": d.response_text,
-                      "escalate": d.escalate, "reasons": d.reasons}, ensure_ascii=False, indent=2))
+                      "escalate": d.escalate, "reasons": d.reasons}, indent=2))
     return 0 if d.allowed else 1
 
 

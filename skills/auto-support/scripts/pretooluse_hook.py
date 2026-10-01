@@ -73,7 +73,7 @@ def allow():
 
 
 def main():
-    raw = sys.stdin.read()
+    raw = sys.stdin.buffer.read().decode("utf-8-sig", "replace")
     try:
         evt = json.loads(raw) if raw.strip() else {}
     except Exception:

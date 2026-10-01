@@ -96,7 +96,7 @@ def evaluate(answer: dict, allowlist=None, denylist=None, require_citation: bool
 
 
 def main():
-    ans = json.loads(sys.stdin.read() or "{}")
+    ans = json.loads(sys.stdin.buffer.read().decode("utf-8-sig", "replace") or "{}")
     d = evaluate(ans)
     # never print `reasons` to a user-facing channel; here it's a CLI diagnostic only
     print(json.dumps({"allowed": d.allowed, "response_text": d.response_text,

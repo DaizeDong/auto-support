@@ -17,9 +17,9 @@ A support bot that reads your product's repo is one prompt away from leaking you
 governing principle is blunt: **its first job is to keep secrets in, not to answer.** Better to
 miss an answer than to leak once. Crucially, a guard *written into a prompt* is a suggestion the
 model can ignore (AWS baseline: told-not-to leaked 3/3; one deterministic hook -> blocked 3/3),
-so every guarantee here lives **outside** the model: `permissions.deny` + a fail-closed
-`PreToolUse` hook + stdlib detection + an egress DLP gate. The model literally cannot open a
-secret file, so it cannot leak one.
+so enforcement is placed **outside** the model: `permissions.deny` + a fail-closed
+`PreToolUse` hook + stdlib detection + an egress DLP gate. Verify the deployed host's hook
+coverage and sandbox before using private product material; local tests do not prove every host boundary.
 
 📜 **[Read the full design philosophy -> PHILOSOPHY.md](PHILOSOPHY.md)**
 
@@ -42,9 +42,17 @@ Discord msg ─▶ entry (injection+intent, spotlighted) ─▶ retrieval (allow
             ─▶ draft ─▶ founder review ─▶ approve ─▶ user      (any gate fails ⇒ neutral refusal + escalate)
 ```
 
-Knowledge boundary is **allowlist-first, default-deny, denylist-wins**: secrets are never opened,
-so they cannot be assembled into an answer. State (FAQ/pending/escalated) reuses the
+Knowledge boundary is **allowlist-first, default-deny, denylist-wins**: retrieval and the hook
+check both the requested path and its resolved target within the selected public root.
+Detected credentials and PII are removed before notification or persistence. State reuses the
 `schedule-reminder` base; escalation reuses the machine Discord relay with SRE-style dedup.
+
+Retrieval retains local preambles separately and follows explicit same-document section
+references. Separating large prose chapters requires an exhaustive semantic interpretation
+through the installed `llmcall` interface, using its current default judge routing. Missing,
+uncertain or incorrectly bound interpretations cause refusal. Exact ranges prove where the
+evidence came from; semantic judgments remain fallible and need independent validation.
+See [source scope](docs/source-scope.md).
 
 ## Install
 
@@ -55,16 +63,41 @@ so they cannot be assembled into an answer. State (FAQ/pending/escalated) reuses
 Or clone manually:
 
 ```bash
-git clone https://github.com/DaizeDong/auto-support.git ~/.claude/plugins/auto-support
+git clone --recurse-submodules https://github.com/DaizeDong/auto-support.git ~/.claude/plugins/auto-support
 ```
 
 ## Quick start
 
-1. Create a private `auto-support-config` from the schema in `reference/config-schema.md`; set
-   `product_root`, `index_allowlist`, `secret_denylist`, founder channel (Discord token via DPAPI).
-2. `apply.py` composes the product root's `.claude/settings.json` from
-   `skills/auto-support/templates/settings.json.template` (deny globs + PreToolUse hook).
-3. Run the red-team gate before any non-draft reply mode: `cd skills/auto-support && python -m pytest tests/ -q`.
+From the repository root, initialize an empty companion outside the tool checkout:
+
+```bash
+python scripts/init_config.py --slug example --out ../auto-support-config
+```
+
+Set `products/example/product.json`'s `product_root` to the absolute directory of the
+product's public documentation. The generated policy accepts document formats throughout that
+directory, including a flat `usage.md`; deny rules still apply. Then run:
+
+```bash
+python scripts/verify_config.py --config-dir ../auto-support-config
+python skills/auto-support/scripts/answer_pipeline.py --policy ../auto-support-config/products/example/policy.json --query "How do I install the SDK?"
+```
+
+This produces a cited draft with no Discord credentials. Keep real configuration and runtime
+records in a PRIVATE versioned companion. The optional delivery integration must separately
+configure the host hook, relay and approvals; this initializer does not ship an `apply.py`.
+
+Before enabling turn persistence, set `AUTO_SUPPORT_REMINDER_PY` to the installed
+`schedule-reminder` CLI and `SCHEDULE_DB_PATH` to an absolute database path in an initialized
+PRIVATE versioned companion. Initialize that database explicitly and require a successful
+JSON receipt and exit code before calling `reminder_bridge.py`:
+
+```bash
+python "$AUTO_SUPPORT_REMINDER_PY" --db "$SCHEDULE_DB_PATH" init
+```
+
+Current scheduler versions reject an uninitialized database. The draft quick start and
+the doctor's `DRAFT READY` result do not initialize or validate this persistence dependency.
 
 ## Config
 
@@ -74,37 +107,51 @@ product. Full contract + field table: **[CONFIG.md](CONFIG.md)** (deep layout in
 `skills/auto-support/reference/config-schema.md`).
 
 - **Mount (discovery order):** `$AUTO_SUPPORT_CONFIG` → `$AUTO_SUPPORT_CONFIG_DIR` →
-  `~/.auto-support-config/` → `~/.config/auto-support-config/`. First that exists wins; absent ⇒ the
-  hook falls back to its built-in deny defaults (fail-closed). The active product is selected by
-  `$AUTO_SUPPORT_POLICY` (path to `products/<slug>/policy.json`) or the sole product.
+  `~/.auto-support-config/` → `~/.config/auto-support-config/` for the doctor. Explicit missing
+  pointers fail. The doctor can select the sole product; the draft CLI and hook consume
+  `$AUTO_SUPPORT_POLICY`, and the CLI also accepts `--policy`.
 - **First time:**
   ```bash
-  cd skills/auto-support
-  python scripts/init_config.py --slug <product>   # stamp a conformant skeleton (deterministic)
+  # Run from the repository root.
+  python scripts/init_config.py --slug example
   export AUTO_SUPPORT_CONFIG=~/.auto-support-config
-  python scripts/verify_config.py                  # doctor: PASS/FAIL, names what is missing
+  python scripts/verify_config.py                  # fill product.json before expecting DRAFT READY
   ```
 - **Switch configs (hot-swap):** repoint the env var at another config dir, configs are
   self-contained (`product_root` is a placeholder, no baked-in paths):
-  `export AUTO_SUPPORT_CONFIG=~/configs/product-a` ↔ `~/configs/product-b`.
+  Repoint `AUTO_SUPPORT_CONFIG` for the doctor and `AUTO_SUPPORT_POLICY` for the draft CLI/hook.
 - **Secrets:** Mode B, `secrets/*` is gitignored and never enters git; `@secret:...` pointers in
-  `policy.json` are injected from DPAPI ciphertext by the config repo's `apply.py`. Back up out-of-band.
+  `policy.json` require a separately configured delivery adapter. Back up secrets out-of-band.
+  Private runtime records are versioned in the companion, including escalation state.
 
 ## How to invoke
 
-Deployed as a plugin; runs per Discord message via `scripts/answer_pipeline.py` (or `/auto-support
-<msg>` headless). Triggers on @mention / reply-to-bot / a designated support channel only.
+Say “Answer this product question from its public docs.” The skill resolves the selected product,
+asks once for a missing docs root or ambiguous product, validates its policy, then returns a cited
+draft or a refusal. Use `--demo --root <public-docs>` only for an explicit policy-free demo.
+Automatic Discord intake requires a separately installed listener.
 
 ## Example output
 
 A passing turn returns a grounded draft with citations (`public-faq/faq.md:4`); a blocked/unsure
-turn returns exactly one neutral line (`这个问题我无法确定，已转交团队跟进。`) and pages the founder.
+turn returns one neutral line (`这个问题我无法确定，请联系团队进一步确认。`). The JSON decision
+can request escalation; it is not a delivery receipt. `escalate.py --dry-run` reports a plan;
+only a successful live relay marks `sent=true` and starts cooldown.
+An uncertain response reports `sent=null` and `reconciliation_required=true`, retains its
+private dispatch lock, and requires inspection before any retry, including critical alerts.
 
 ## Limitations
 
-MVP is draft/relay (no auto-post until the red-team suite passes on the real product). No vector
-store yet (precise Read/Grep grounding). On bare Windows there is no OS sandbox layer, run under
-WSL2/devcontainer for full defense depth. The full faithfulness judge LLM is an integration seam.
+The shipped CLI accepts only unchanged retrieved excerpts and matching citations, including
+outputs from a custom generator. Paraphrasing requires a separate verified integration.
+Scope interpretation depends on the configured model when large prose chapters are separated;
+deterministic test responses do not establish that model's effectiveness. Discord listeners,
+secret provisioning, host hooks and live delivery
+need deployment validation; a passing unit suite does not enable auto-post. The reminder bridge
+requires `schedule-reminder`. Runtime writes require Git and authenticated `gh` to prove PRIVATE
+visibility for every configured remote's effective fetch and push URLs, including URL rewrites.
+Default and branch push selections must refer to verified named remotes. PUBLIC or unknown
+destinations block writes, with no fallback into the tool repository. No OS sandbox is installed.
 
 ## Languages
 

@@ -6,11 +6,11 @@ base64 secret/PII (< the old 16-char threshold) bypassed _decode_layers. Both mu
 PreToolUse hook: an unknown tool name (e.g. "ReadFile"/"Shell") and an empty payload hit a fail-OPEN
 allow() tail; both must now be denied (exit 2).
 """
-import base64
 import json
 import os
 import subprocess
 import sys
+import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.abspath(os.path.join(HERE, "..", "scripts"))
@@ -18,32 +18,37 @@ if SCRIPTS not in sys.path:
     sys.path.insert(0, SCRIPTS)
 
 import guardrails as G  # noqa: E402
+from test_review_acceptance_a import fixtures  # noqa: E402
 
-_SSN = b"123-45-6789"  # flagged as PII in raw form; used as a decodable payload across channels
 HOOK = os.path.join(SCRIPTS, "pretooluse_hook.py")
 
 
 def _leaks(text):
-    return bool(G.egress_leak_verdict(text))
+    return not G.egress_leak_verdict(text).safe
 
 
 def test_raw_pii_is_flagged_baseline():
-    assert _leaks(_SSN.decode())
+    assert _leaks(fixtures.leak_hardening_case("raw"))
 
 
 def test_short_base64_pii_is_caught():
-    blob = base64.b64encode(_SSN).decode()          # 'MTIzLTQ1LTY3ODk=' (15 pre-pad, < old 16 gate)
+    blob = fixtures.leak_hardening_case("base64")
     assert _leaks("here you go " + blob)
 
 
 def test_ascii85_secret_with_special_chars_is_caught():
-    blob = base64.a85encode(_SSN).decode()          # ascii85 alphabet includes ':' '"' '/', etc.
+    blob = fixtures.leak_hardening_case("ascii85")
     assert _leaks("ref " + blob + " thanks")
 
 
 def test_base85_secret_is_caught():
-    blob = base64.b85encode(_SSN).decode()
+    blob = fixtures.leak_hardening_case("base85")
     assert _leaks("code " + blob)
+
+
+@pytest.mark.parametrize("encoding", ["raw", "base64", "ascii85", "base85"])
+def test_benign_short_payload_remains_safe(encoding):
+    assert G.egress_leak_verdict(fixtures.leak_hardening_case(encoding, benign=True)).safe
 
 
 def _hook(payload_str):

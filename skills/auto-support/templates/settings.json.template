@@ -1,5 +1,5 @@
 {
-  "// NOTE": "Deployed into the PRODUCT ROOT as .claude/settings.json by auto-support-config/scripts/apply.py. permissions.deny + the PreToolUse hook are the enforcement layer — SKILL.md is not. Edit globs to match the product's secret_denylist. __HOOK_CMD__ is replaced with the absolute python invocation of pretooluse_hook.py.",
+  "// NOTE": "Template for the PRODUCT ROOT's .claude/settings.json. No deployment helper is shipped; the product maintainer must install and verify it. permissions.deny + the PreToolUse hook are the enforcement layer — SKILL.md is not. Edit globs to match the product's secret_denylist. __HOOK_CMD__ is replaced with the absolute python invocation of pretooluse_hook.py.",
   "permissions": {
     "deny": [
       "Read(./.env)", "Read(./.env.*)", "Read(**/.env)", "Read(**/.env.*)",

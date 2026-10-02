@@ -18,13 +18,16 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "skills/auto-support/scripts"))
+import policy as P
 
 ENV_VAR = "AUTO_SUPPORT_CONFIG"
 PASS, FAIL = "PASS", "FAIL"
 REQUIRED_TOP = ["schema_version", "product_slug", "product_root", "index_allowlist",
                 "secret_denylist", "confidence", "escalation", "reply_mode", "discord"]
 REPLY_MODES = {"draft_human_review", "relay_only", "auto_post"}
-ABS_MARKERS = ("C:\\", "C:/", "D:\\", "D:/", "/home/", "/Users/", "/root/")
 
 
 def discover_config(override):
@@ -67,6 +70,8 @@ def main():
     ap.add_argument("--policy", default=None)
     ap.add_argument("--slug", default=None)
     a = ap.parse_args()
+    if a.slug and not P.valid_slug(a.slug):
+        ap.error("--slug must be a kebab-case product slug")
 
     cfg, how = discover_config(a.config_dir)
     print("Config doctor for skill 'auto-support'")
@@ -83,6 +88,8 @@ def main():
         print("  [%s] product policy located -> %s" % (FAIL, phow or "none found"))
         print("       Set $AUTO_SUPPORT_POLICY=<...>/products/<slug>/policy.json or --slug <name>.")
         return 1
+    if not cfg:
+        cfg = str(Path(policy).resolve().parents[2])
     print("  policy via %s -> %s" % (phow, policy))
     print("-" * 64)
 
@@ -92,11 +99,10 @@ def main():
         results.append((name, ok, detail))
 
     try:
-        with open(policy, "r", encoding="utf-8-sig") as f:
-            pol = json.load(f)
-        check("policy.json valid JSON", True)
-    except Exception as e:
-        check("policy.json valid JSON", False, str(e))
+        pol = P.load_policy(policy)
+        check("policy.json schema", True)
+    except P.PolicyError as e:
+        check("policy.json schema", False, str(e))
         pol = None
 
     if pol is not None:
@@ -110,16 +116,13 @@ def main():
               isinstance(pol.get("secret_denylist"), list) and len(pol.get("secret_denylist")) > 0)
         check("reply_mode is valid", pol.get("reply_mode") in REPLY_MODES,
               "got %r (want %s)" % (pol.get("reply_mode"), "|".join(sorted(REPLY_MODES))))
-        # E5 self-contained: product_root must be a placeholder, not a baked-in absolute path.
-        pr = str(pol.get("product_root", ""))
-        check("product_root is a placeholder (self-contained, E5)",
-              pr == "<PRODUCT_ROOT>" or not any(m in pr for m in ABS_MARKERS),
-              "raw absolute path %r -> resolve via apply.py / per-machine product.json" % pr)
+        # Private per-product policies may select an absolute root directly.
+        # The shared resolver below validates both documented selection modes.
         # Secrets are pointers, never inlined plaintext.
         esc = pol.get("escalation", {}) if isinstance(pol.get("escalation"), dict) else {}
         fc = str(esc.get("founder_channel", ""))
         check("founder_channel is an @secret pointer (not inlined)",
-              fc.startswith("@secret:") or fc == "", "got %r" % fc)
+              fc.startswith("@secret:") or fc == "", "use an @secret reference")
 
     # ---- registry.json: the config repo's own manifest ----
     # Found by config_mutation_probe: this file was never named in this script, so
@@ -148,7 +151,8 @@ def main():
                       "got %r" % type(reg.get("mode")).__name__)
                 check("registry.spec is a string", isinstance(reg.get("spec"), str),
                       "got %r" % type(reg.get("spec")).__name__)
-            elif reg is not None:
+                check("registry includes the selected product", bool(pol) and isinstance(reg.get("products"), list) and pol["product_slug"] in reg["products"])
+            else:
                 check("registry.json is an object", False,
                       "top level is %s" % type(reg).__name__)
 
@@ -157,6 +161,7 @@ def main():
     # where the real path lives. It was mentioned only in a comment here, and all 23 field
     # mutations were accepted -- meaning a product.json with no product_root at all passed.
     prod_p = os.path.join(os.path.dirname(policy), "product.json") if policy else None
+    check("product.json present", bool(prod_p and os.path.isfile(prod_p)))
     if prod_p and os.path.isfile(prod_p):
         prod = None
         try:
@@ -168,20 +173,27 @@ def main():
         if isinstance(prod, dict):
             check("product.slug is a non-empty string",
                   isinstance(prod.get("slug"), str) and bool(prod.get("slug")))
+            check("product.slug matches policy", bool(pol) and prod.get("slug") == pol["product_slug"])
             root = prod.get("product_root")
             check("product.product_root is a non-empty string",
                   isinstance(root, str) and bool(root), "got %r" % type(root).__name__)
             if isinstance(root, str) and root:
                 # The placeholder belongs in policy.json, never here: this file is the
-                # machine-specific half, so an unresolved placeholder means apply.py
-                # never ran and every path downstream is wrong.
+                # machine-specific half, so an unresolved placeholder means the
+                # operator has not yet configured the documentation directory.
                 check("product.product_root is resolved (not the placeholder)",
                       "<PRODUCT_ROOT>" not in root)
-            check("product.status is a string", isinstance(prod.get("status"), str),
+            check("product.status supports drafts", isinstance(prod.get("status"), str) and prod.get("status") in ("draft", "active"),
                   "got %r" % type(prod.get("status")).__name__)
-        elif prod is not None:
+        else:
             check("product.json is an object", False,
                   "top level is %s" % type(prod).__name__)
+    if pol:
+        try:
+            P.resolve_product_root(policy, pol)
+            check("product documentation root resolves", True)
+        except P.PolicyError as exc:
+            check("product documentation root resolves", False, str(exc))
 
     # gitignore secrets gate (E6) at the config-repo root.
     if cfg:
@@ -204,7 +216,7 @@ def main():
     if n_fail:
         print("NOT READY: %d check(s) failed. Fix the above (or re-run init_config.py)." % n_fail)
         return 1
-    print("READY: %s conforms. Fill <PRODUCT_ROOT>/secrets and run apply.py to deploy." % policy)
+    print("DRAFT READY: policy and public-docs root validated. Discord delivery and live retrieval remain unverified.")
     return 0
 
 

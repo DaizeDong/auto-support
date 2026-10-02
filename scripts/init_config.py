@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Stamp a spec-conformant `auto-support-config` companion repo (config-spec E3/E4).
 
-auto-support is config-bearing, but uses a **per-product policy** layout (Mode B), NOT the generic
-`registry.json`. Each product gets an isolated `products/<slug>/policy.json`; products never share a
+auto-support uses a registry of isolated per-product policies (Mode B).
+Each product gets an isolated `products/<slug>/policy.json`; products never share a
 policy or read each other's files. This script writes an empty, conformant skeleton for one product.
 
 Deterministic + template-driven (E4): re-running with the same --slug + --out produces byte-identical
 output. Self-contained (E5): the committed policy.json carries the placeholder `<PRODUCT_ROOT>` and
-`@secret:...` pointers — never a real absolute path, never a real secret. `apply.py` (in the config
-repo) resolves the placeholder + injects DPAPI ciphertext at deploy time (mechanism, not memory).
+`@secret:...` pointers. The per-machine product.json supplies the documentation root for drafts.
+Discord delivery and secret provisioning are separate deployment integrations.
 
 Discovery convention this skill uses (also CONFIG.md §Discovery, E2). The config dir resolves from,
 in order; first that exists wins:
@@ -30,6 +30,10 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "skills/auto-support/scripts"))
+import policy as P
 
 ENV_VAR = "AUTO_SUPPORT_CONFIG"
 DEFAULT_DIR = os.path.expanduser("~/.auto-support-config")
@@ -50,10 +54,7 @@ claude.json
 !*.key.template
 !*.pem.template
 
-# Per-product human ledgers + audit metrics carry PII -> only the templates/schema are committed.
-products/*/confidential-inventory.md
-!products/*/confidential-inventory.md.template
-metrics/**/*.jsonl
+# Runtime records belong in this PRIVATE companion and are versioned here.
 """
 
 SECRETS_README = """\
@@ -61,15 +62,15 @@ SECRETS_README = """\
 
 DPAPI ciphertext only: Discord bot token, relay webhook, any LLM key. These are in the GitHub
 Secret-Scanning Partnership and get auto-revoked even in private repos, so they are **gitignored**
-(see ../.gitignore) and never enter git. Capture them with `scripts/capture-key.ps1`; `apply.py`
-injects them where `policy.json` has an `@secret:...` pointer (refuses to substitute a missing
-placeholder — mechanism, not memory). Back up out-of-band; never echo a secret. UTF-8 without BOM.
+(see ../.gitignore) and never enter git. Draft mode does not need these credentials.
+A delivery integration must explicitly provision and resolve the `@secret:...` pointers;
+no capture or deployment helper is shipped by this initializer. Back up secrets out-of-band.
 """
 
 METRICS_SCHEMA = """\
 # metrics/ schema
 
-Audit ledger of each turn (PII -> only this SCHEMA.md is committed; `*.jsonl` is gitignored).
+Audit ledger of each turn. Version runtime records only in this PRIVATE companion repository.
 
 | field        | type   | meaning                                            |
 |--------------|--------|----------------------------------------------------|
@@ -82,10 +83,10 @@ Audit ledger of each turn (PII -> only this SCHEMA.md is committed; `*.jsonl` is
 """
 
 CONFIDENTIAL_INVENTORY_TEMPLATE = """\
-# Confidential inventory — <PRODUCT> (TEMPLATE; copy to confidential-inventory.md, which is gitignored)
+# Confidential inventory — <PRODUCT> (TEMPLATE; copy inside the PRIVATE companion)
 
 Human ledger of what must NEVER leave the repo, so the denylist can be audited against reality.
-One row per secret/asset class. The live copy holds real paths/owners and is gitignored.
+One row per secret/asset class. Version the live copy in the PRIVATE companion; never list secret values.
 
 | asset class        | example path/glob        | why confidential          | owner |
 |--------------------|--------------------------|---------------------------|-------|
@@ -101,14 +102,9 @@ def policy_skeleton(slug):
         "schema_version": 1,
         "product_slug": slug,
         "product_root": "<PRODUCT_ROOT>",
-        "index_allowlist": ["README*", "docs/**", "public-faq/**", "CHANGELOG*",
-                            "examples/**", "**/*.example"],
-        "secret_denylist": ["**/.env", "**/.env.*", "*.pem", "*.key", "id_rsa", "secrets/**",
-                            "credentials/**", "vault/**", "src/**", "internal/**", "proprietary/**",
-                            "algorithms/**", "**/customer_data/**", "**/*.pii.*", "**/CLAUDE.md",
-                            ".git/**"],
-        "confidence": {"retrieval_min": 0.7, "faithfulness_min": 0.7, "high_band": 0.9,
-                       "self_consistency_samples": 3},
+        "index_allowlist": ["*.md", "*.rst", "*.txt", "*.html", "*.htm", "**/*.example"],
+        "secret_denylist": list(P.DEFAULT_DENY),
+        "confidence": {**P.DEFAULT_CONFIDENCE, "self_consistency_samples": 3},
         "escalation": {"founder_channel": "@secret:founder_channel",
                        "relay_cmd": "~/.local/notifier.py",
                        "dedup_window_sec": 14400, "group_wait_sec": 30,
@@ -124,6 +120,8 @@ def policy_skeleton(slug):
 
 def product_skeleton(slug):
     return {
+        "slug": slug,
+        "status": "draft",
         "product_slug": slug,
         "product_root": "<PRODUCT_ROOT>",
         "discord_guild_id": "<DISCORD_GUILD_ID>",
@@ -149,8 +147,27 @@ def main():
     a = ap.parse_args()
 
     slug = a.slug
+    if not P.valid_slug(slug):
+        ap.error("--slug must contain only lowercase letters, digits and single separating hyphens")
     out = os.path.abspath(os.path.expanduser(a.out or DEFAULT_DIR))
+    if Path(out).resolve().is_relative_to(Path(__file__).resolve().parents[1]):
+        ap.error("--out must be outside the public tool repository")
     prod = os.path.join(out, "products", slug)
+    # Resolve existing links before creating anything so a product link cannot escape --out.
+    if not Path(prod).resolve().is_relative_to(Path(out).resolve()):
+        ap.error("product path escapes --out")
+    registry_path = Path(out) / "registry.json"
+    registry = {"schema_version": 1, "mode": "B", "spec": "auto-support-config-v1", "products": []}
+    if registry_path.exists():
+        try:
+            registry = json.loads(registry_path.read_text(encoding="utf-8-sig"))
+            if (not isinstance(registry, dict) or registry.get("schema_version") != 1
+                    or not isinstance(registry.get("products"), list)
+                    or any(not P.valid_slug(x) for x in registry["products"])):
+                raise ValueError("invalid registry")
+        except (OSError, ValueError):
+            ap.error("existing registry.json is invalid; repair it before initialization")
+    registry["products"] = sorted(set(registry["products"]) | {slug})
 
     print("Init auto-support-config (Mode B) at %s" % out)
     print("Discovery env var: %s  (alias %s_DIR, fallback %s)" % (ENV_VAR, ENV_VAR, DEFAULT_DIR))
@@ -159,6 +176,8 @@ def main():
     def j(obj):
         return json.dumps(obj, indent=2, ensure_ascii=False) + "\n"
 
+    P.validate_policy(policy_skeleton(slug))
+    write(str(registry_path), j(registry), True)
     write(os.path.join(prod, "policy.json"), j(policy_skeleton(slug)), a.force)
     write(os.path.join(prod, "product.json"), j(product_skeleton(slug)), a.force)
     write(os.path.join(prod, "allowlist.txt"),
@@ -174,11 +193,12 @@ def main():
     write(os.path.join(out, "metrics", "SCHEMA.md"), METRICS_SCHEMA, a.force)
 
     print("\nNext:")
-    print("  1) Fill products/%s/: set <PRODUCT_ROOT> + <DISCORD_GUILD_ID> + <DOCS_URL>;" % slug)
-    print("     capture secrets into secrets/ (gitignored) so each @secret:... pointer resolves.")
+    print("  1) Set product_root in products/%s/product.json to the absolute public-docs directory." % slug)
+    print("     Draft mode requires no Discord credentials. Version real records only in a PRIVATE companion.")
     print("  2) export %s=%s   (or use the default path)" % (ENV_VAR, out))
     print("     export AUTO_SUPPORT_POLICY=%s" % os.path.join(prod, "policy.json"))
-    print("  3) python scripts/verify_config.py   # doctor: confirms the config is ready")
+    print("  3) python scripts/verify_config.py --config-dir <config-dir>   # draft readiness")
+    print("  4) python skills/auto-support/scripts/answer_pipeline.py --policy <policy.json> --query <question>")
     return 0
 
 

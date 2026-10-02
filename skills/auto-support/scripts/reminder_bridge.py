@@ -2,28 +2,29 @@
 """auto-support -> schedule-reminder bridge (reuse the frozen base; never reinvent state).
 
 We persist every support turn (pending / doing / done-FAQ / blocked-escalation / cancelled)
-through the schedule-reminder contract (api_version 1.0.0). We ONLY call `reminder.py <verb>
---json` over subprocess and parse stdout JSON. We NEVER touch the .db, write SQL, or import
+through the schedule-reminder contract (api_version 1.x). We ONLY call `reminder.py <verb>`
+over subprocess and parse its always-JSON stdout. We NEVER touch the .db, write SQL, or import
 base internals (contract.md hard rule).
 
 auto-support fields ride in `ext` under the `x_auto_support_*` namespace (base MUST-PRESERVE).
 Idempotency key = `auto-support:discord:<message_id>` so a redelivered Discord event is a
 no-op upsert, not a duplicate ticket.
 
-PRIVACY: the question is PII-redacted before it is stored (scan_pii -> redact), and
-`x_auto_support_answer_ref` carries only citations (path:line), never secret/source text.
+PRIVACY: detected credentials and PII are redacted from text and metadata before
+persistence. Callers supply only public citations in `x_auto_support_answer_ref`.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
-from dataclasses import dataclass
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import guardrails as G  # noqa: E402
+from sanitization import redact, sanitize_fields  # noqa: E402
+import runtime_data as D  # noqa: E402
 
 # Resolve the base CLI. Override with AUTO_SUPPORT_REMINDER_PY for tests / non-default installs.
 DEFAULT_REMINDER = os.path.expanduser("~/.local/reminder.py")
@@ -34,34 +35,56 @@ class ReminderError(RuntimeError):
     pass
 
 
-def _redact_pii(text: str) -> str:
-    """Replace any PII span with a typed tag so nothing personal is persisted."""
-    out = text or ""
-    res = G.scan_pii(out)
-    # rebuild from spans (right-to-left so offsets stay valid)
-    spans = sorted(((f.span, f.rule) for f in res.findings), reverse=True)
-    for (s0, s1), rule in spans:
-        out = out[:s0] + ("[REDACTED_%s]" % rule.upper()) + out[s1:]
-    return out
+_STATES = {"pending", "doing", "done", "blocked", "cancelled"}
+_TARGETS = {"answered": "done", "doing": "doing", "escalate": "blocked",
+            "blocked-leak": "blocked", "abstain": "pending", "cancelled": "cancelled"}
+
+
+def _validate_receipt(receipt: object) -> dict:
+    """Require the versioned success envelope and the item fields this bridge uses."""
+    if not isinstance(receipt, dict) or receipt.get("ok") is not True:
+        raise ReminderError("reminder did not confirm persistence")
+    version = receipt.get("api_version")
+    schema = receipt.get("schema_version")
+    if (not isinstance(version, str) or not re.fullmatch(r"1\.\d+\.\d+", version)
+            or type(schema) is not int or schema < 1):
+        raise ReminderError("reminder returned an unsupported receipt version")
+    item = receipt.get("item")
+    if (not isinstance(item, dict) or not isinstance(item.get("id"), str)
+            or not item["id"].strip() or not isinstance(item.get("state"), str)
+            or item["state"] not in _STATES):
+        raise ReminderError("reminder returned an invalid item receipt")
+    return receipt
 
 
 def _call(verb: str, args: list[str], db: str | None = None) -> dict:
-    cmd = [sys.executable, REMINDER_PY]
-    if db:
-        cmd += ["--db", db]
+    try:
+        selected = db if db is not None else os.environ.get("SCHEDULE_DB_PATH")
+        if selected is None:
+            raise D.DataBoundaryError("Set --db or SCHEDULE_DB_PATH to an absolute database in a PRIVATE versioned companion")
+        target = D.private_file_path(selected, sidecars=("-wal", "-shm", "-journal"))
+    except (D.DataBoundaryError, OSError, ValueError) as exc:
+        raise ReminderError(str(exc)) from exc
+    cmd = [sys.executable, REMINDER_PY, "--db", str(target)]
     cmd += ["--actor", "auto-support", verb] + args
-    p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=60)
+    except (OSError, subprocess.TimeoutExpired, UnicodeError) as exc:
+        raise ReminderError("reminder invocation failed; persistence is unconfirmed") from exc
     if p.returncode == 0:
         try:
-            return json.loads(p.stdout.strip().splitlines()[-1])
-        except Exception as e:
-            raise ReminderError("bad stdout JSON: %s / %s" % (e, p.stdout[:200]))
+            receipt = json.loads(p.stdout)
+        except (ValueError, TypeError) as e:
+            raise ReminderError("reminder returned invalid JSON") from e
+        return _validate_receipt(receipt)
     # structured error on stderr
     try:
-        err = json.loads((p.stderr or "{}").strip().splitlines()[-1])
-    except Exception:
-        err = {"error_code": "ERR_UNKNOWN", "message": p.stderr[:200]}
-    raise ReminderError("%s: %s" % (err.get("error_code"), err.get("message")))
+        err = json.loads(p.stderr)
+    except (ValueError, TypeError):
+        err = None
+    if not isinstance(err, dict):
+        raise ReminderError("reminder invocation failed without a structured error")
+    raise ReminderError(redact("%s: %s" % (err.get("error_code"), err.get("message"))))
 
 
 def _ext(message_id: str, channel: str, user_id: str, intent: str, decision: str,
@@ -69,7 +92,7 @@ def _ext(message_id: str, channel: str, user_id: str, intent: str, decision: str
          faithfulness: float | None = None, answer_ref: str = "",
          question: str = "") -> str:
     ext = {
-        "x_auto_support_question": _redact_pii(question),
+        "x_auto_support_question": question,
         "x_auto_support_discord_msg_id": message_id,
         "x_auto_support_channel": channel,
         "x_auto_support_user_id": user_id,
@@ -82,7 +105,7 @@ def _ext(message_id: str, channel: str, user_id: str, intent: str, decision: str
         ext["x_auto_support_retrieval_conf"] = round(retrieval_conf, 3)
     if faithfulness is not None:
         ext["x_auto_support_faithfulness"] = round(faithfulness, 3)
-    return json.dumps({k: v for k, v in ext.items() if v not in ("", None)})
+    return json.dumps(sanitize_fields({k: v for k, v in ext.items() if v not in ("", None)}))
 
 
 def record_turn(message_id: str, *, channel: str, user_id: str, intent: str, decision: str,
@@ -98,31 +121,45 @@ def record_turn(message_id: str, *, channel: str, user_id: str, intent: str, dec
       blocked-leak -> task/blocked  (reason=leak)
       abstain      -> task/pending  (stays queued for human)
       cancelled    -> cancelled
+
+    An existing terminal item is returned without reopening it. Replaying a state
+    already reached performs no further transitions. Receipt mismatches fail loudly.
     """
-    title = "[support] " + _redact_pii(question)[:80]
+    if not isinstance(message_id, str) or not message_id or redact(message_id) != message_id:
+        raise ReminderError("message_id must be a nonempty identifier without sensitive content")
+    if decision not in _TARGETS:
+        raise ReminderError("unsupported support decision")
+    title = "[support] " + redact(question)[:80]
     ext = _ext(message_id, channel, user_id, intent, decision, trigger,
                retrieval_conf, faithfulness, answer_ref, question)
     idem = "auto-support:discord:%s" % message_id
     item = _call("add", [
         "--title", title, "--kind", "task", "--state", "pending",
         "--source", "auto-support", "--idempotency-key", idem, "--ext", ext,
-    ], db).get("item", {})
-    iid = item.get("id")
-    if not iid:
+    ], db)["item"]
+    iid, state = item["id"], item["state"]
+    if state in ("done", "cancelled") or state == _TARGETS[decision]:
         return item
+
+    def transition(verb: str, args: list[str], target: str) -> dict:
+        updated = _call(verb, ["--id", iid] + args, db)["item"]
+        if updated["id"] != iid or updated["state"] != target:
+            raise ReminderError("reminder receipt does not confirm the requested transition")
+        return updated
 
     if decision in ("escalate", "blocked-leak"):
         reason = "leak-blocked" if decision == "blocked-leak" else (trigger or "low-confidence")
-        return _call("block", ["--id", iid, "--reason", reason], db).get("item", item)
+        return transition("block", ["--reason", redact(reason)], "blocked")
     if decision == "answered":
-        _call("transition", ["--id", iid, "--to", "doing"], db)
-        return _call("done", ["--id", iid], db).get("item", item)
+        if state != "doing":
+            transition("transition", ["--to", "doing", "--expect", state], "doing")
+        return transition("done", [], "done")
     if decision == "doing":
-        return _call("transition", ["--id", iid, "--to", "doing"], db).get("item", item)
+        return transition("transition", ["--to", "doing", "--expect", state], "doing")
     if decision == "cancelled":
-        return _call("transition", ["--id", iid, "--to", "cancelled",
-                                    "--reason", "off-topic/chitchat"], db).get("item", item)
-    return item  # abstain -> leave pending
+        return transition("transition", ["--to", "cancelled", "--expect", state,
+                                         "--reason", "off-topic/chitchat"], "cancelled")
+    return item  # abstain does not reset a ticket that is already being handled
 
 
 def main():

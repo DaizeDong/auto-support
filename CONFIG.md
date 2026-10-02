@@ -1,97 +1,99 @@
 # auto-support, Config
 
-`auto-support` is **config-bearing**: secrets and the per-product knowledge boundary live in a
-**separate, private companion repo** you create, `auto-support-config` (Mode B). The skill repo is
-generic and ships no secrets. This file is the authoritative config contract (config-spec E1); the
-deep field layout lives in [`skills/auto-support/reference/config-schema.md`](skills/auto-support/reference/config-schema.md).
+Configuration and real runtime records live in a separate PRIVATE `auto-support-config`
+repository (Mode B). The public tool ships an empty initializer and synthetic tests.
+`skills/auto-support/scripts/policy.py` owns the policy schema used by init, doctor, hook and CLI.
 
-Unlike the generic `registry.json` variant, auto-support uses a **per-product `policy.json`** so
-products never share a policy or read each other's files.
+## Discovery and selection (E2)
 
-## Discovery convention (how the skill finds your config), E2
+The doctor uses `--config-dir`, then `AUTO_SUPPORT_CONFIG`, `AUTO_SUPPORT_CONFIG_DIR`,
+`~/.auto-support-config`, and `~/.config/auto-support-config`. An explicit invalid directory
+fails; it does not select a different config. Product selection uses `--policy`, then
+`AUTO_SUPPORT_POLICY`, then `--slug`, then the sole product. Multiple products require a selector.
 
-The config dir resolves in this order; the first that exists wins:
+The draft CLI takes `--policy` or `AUTO_SUPPORT_POLICY`; the hook uses `AUTO_SUPPORT_POLICY`.
+An explicit missing, malformed or incomplete policy fails before answering or permitting a read.
+Without a policy the hook binds its restricted project-layout globs to its process working
+directory. The CLI requires `--demo --root <project-root>` for that demonstration mode;
+its built-ins allow README, docs, public-faq, examples and example files. Demo cannot override
+a supplied policy. Normal initialization instead uses document-format globs suited to a
+dedicated public-docs directory, including flat files.
 
-1. `$AUTO_SUPPORT_CONFIG`, environment variable (recommended; location-independent).
-2. `$AUTO_SUPPORT_CONFIG_DIR`, accepted alias.
-3. `~/.auto-support-config/`, dotfile-in-home fallback.
-4. `~/.config/auto-support-config/`, XDG-style fallback (Linux/macOS).
+Hook requests resolve relative paths against the absolute event `cwd` and must stay within
+the selected root before and after resolving links. `Grep` and `Glob` require an explicit
+`path`; directory searches are rejected if any reachable file is outside the public policy.
+Shell reads accept only the small literal grammar in the hook, with no expansions or pipelines.
 
-Within the resolved config dir the skill consumes **one** product. Product selection order:
+Real escalation state uses the pinned guard's companion discovery plus a live GitHub PRIVATE
+visibility check. Set `AUTO_SUPPORT_CONFIG` to the private companion or `AUTO_SUPPORT_DATA_DIR`
+to its existing data directory. `AUTO_SUPPORT_STATE_DIR` and `--state-path` may only select a
+location within that verified data directory. Missing proof fails before dispatch; there is no
+unversioned or public fallback. Git and authenticated `gh` are required for runtime state writes.
 
-1. `$AUTO_SUPPORT_POLICY`, absolute path to `products/<slug>/policy.json` (the hook reads this directly).
-2. the sole product under `<config>/products/` when exactly one exists.
+The optional reminder bridge requires `--db` or `SCHEDULE_DB_PATH` to select an absolute
+database path in a verified PRIVATE repository. It checks the database and SQLite sidecars
+before every writing CLI invocation. An unset path, unknown origin, public repository,
+cross-repository link or hard link stops before persistence. The bridge does not inherit an
+unverified database default from the reminder installation.
 
-If nothing resolves, the deterministic `pretooluse_hook.py` falls back to its built-in deny defaults
-(fail-closed), a missing config never widens access, only narrows what can be answered.
+## Schema (E1)
 
-> Scattered runtime env vars (`$AUTO_SUPPORT_STATE_DIR`, `$AUTO_SUPPORT_REMINDER_PY`,
-> `$AUTO_SUPPORT_MCP_ALLOW`, `$SCHEDULE_DB_PATH`) are optional per-machine overrides, not config
-> discovery. `apply.py` derives them from the resolved policy; set them by hand only for tests.
+| File or field | Contract |
+|---|---|
+| `registry.json` | `schema_version: 1`, `mode`, `spec`, and product slug list |
+| `products/<slug>/product.json` | Matching `slug`, status `draft` or `active`, absolute existing `product_root` |
+| `policy.schema_version` | Integer `1` |
+| `policy.product_slug` | Lowercase kebab-case slug matching product.json |
+| `policy.product_root` | `<PRODUCT_ROOT>` resolved from product.json, or an explicit absolute directory |
+| `index_allowlist`, `secret_denylist` | Nonempty lists of nonempty path globs; deny wins |
+| `confidence` | Numeric `retrieval_min`, `faithfulness_min`, `high_band` in 0..1; high band at least both minima |
+| `reply_mode` | `draft_human_review`, `relay_only` or `auto_post`; the shipped CLI always returns a draft |
+| `escalation`, `discord` | Objects for a separately provisioned delivery integration |
+| `@secret:...` | References to credentials, never literal secret values |
 
-## Schema, `products/<slug>/policy.json` (E1)
+The generated `allowlist.txt` and `denylist.txt` are reference exports. Runtime policy is read
+from JSON; changing an export does not change enforcement. `self_consistency_samples` and
+Discord fields describe optional integrations and do not enable those capabilities.
 
-| Field | Type | Required | Example |
-|---|---|---|---|
-| `schema_version` | int | yes | `1` |
-| `product_slug` | string | yes | `"tokenreply"` |
-| `product_root` | string (placeholder) | yes | `"<PRODUCT_ROOT>"`, resolved per-machine by `apply.py`; never a baked-in absolute path (E5) |
-| `index_allowlist` | string[] (globs) | yes | `["README*","docs/**","public-faq/**"]` |
-| `secret_denylist` | string[] (globs) | yes | `["**/.env","src/**","secrets/**","**/CLAUDE.md"]` |
-| `confidence` | object | yes | `{"retrieval_min":0.7,"faithfulness_min":0.7,"high_band":0.9,"self_consistency_samples":3}` |
-| `escalation` | object | yes | `{"founder_channel":"@secret:founder_channel","relay_cmd":"~/.local/notifier.py","dedup_window_sec":14400,"group_wait_sec":30,"critical_topics":["suspected_leak"]}` |
-| `reply_mode` | enum | yes | `"draft_human_review"` \| `"relay_only"` \| `"auto_post"` |
-| `approver_user_ids` | string[] | no | `["@secret:approver_user_ids"]` |
-| `discord` | object | yes | `{"guild_id":"<DISCORD_GUILD_ID>","intents":["Guilds","GuildMessages"],"support_channels":["@secret:support_channels"],"trigger":["mention","reply","support_channel"]}` |
-| `schedule_reminder` | object | no | `{"source":"auto-support","db_path":"@secret:schedule_db_path"}` |
+## First-time setup (E3/E4)
 
-`@secret:...` are **pointers**, never plaintext. Real values are DPAPI ciphertext in `secrets/` and
-are injected by the config repo's `apply.py` (which refuses to substitute a missing placeholder; mechanism, not memory). `<PRODUCT_ROOT>` / `<DISCORD_GUILD_ID>` / `<DOCS_URL>` are per-machine
-placeholders resolved at apply time (keeps the committed policy self-contained, E5).
-
-Companion repo layout (one isolated dir per product):
-
-```
-auto-support-config/
-  products/<slug>/ policy.json product.json allowlist.txt denylist.txt
-                   confidential-inventory.md.template   # live .md is gitignored
-  secrets/         # Mode B: DPAPI ciphertext (Discord token / webhook / LLM key) — gitignored
-  metrics/SCHEMA.md   # *.jsonl audit ledger has PII -> gitignored
-  scripts/ apply.py capture-key.ps1   runbooks/
-```
-
-## Secrets, Mode B (E6)
-
-The companion config repo is **separate and private**. Discord bot token / relay webhook / any LLM
-key are Mode B: `.gitignore` blocks `secrets/*` (keep `*.template`),
-`products/*/confidential-inventory.md` (keep `.template`), and `metrics/**/*.jsonl`. Real values
-never enter git; back them up out-of-band. Never echo a secret; hand login/publish to the user.
-
-## First-time setup (E3), succeeds on the first try
+Run these commands from the public tool repository root. The output must be outside it:
 
 ```bash
-cd skills/auto-support
-
-# 1. Stamp a conformant, self-contained skeleton for one product (deterministic — E4):
-python scripts/init_config.py --slug <your-product>      # -> ~/.auto-support-config/  (or --out <dir>)
-
-# 2. Point the skill at it:
-export AUTO_SUPPORT_CONFIG=~/.auto-support-config
-export AUTO_SUPPORT_POLICY=~/.auto-support-config/products/<your-product>/policy.json
-
-# 3. Fill <PRODUCT_ROOT>/<DISCORD_GUILD_ID>, capture secrets into secrets/, then confirm readiness:
-python scripts/verify_config.py        # doctor: PASS/FAIL per check, names what is missing
+python scripts/init_config.py --slug example --out ../auto-support-config
 ```
 
-## Switching between configs (hot-swap), E5
-
-A config dir is self-contained (no hardcoded paths, `product_root` is a placeholder). Keep as many
-as you like and switch by repointing the env var; no other change:
+Set `products/example/product.json`'s `product_root` to the absolute directory of public docs.
+Then validate and generate a draft:
 
 ```bash
-export AUTO_SUPPORT_CONFIG=~/configs/product-a    # config A
-export AUTO_SUPPORT_CONFIG=~/configs/product-b    # config B — same skill, different boundary
+python scripts/verify_config.py --config-dir ../auto-support-config
+python skills/auto-support/scripts/answer_pipeline.py --policy ../auto-support-config/products/example/policy.json --query "How do I install the SDK?"
 ```
 
-Verify the swap: `init_config.py --out ~/configs/product-a` and `--out ~/configs/product-b`, run
-`verify_config.py` against each (flip `$AUTO_SUPPORT_CONFIG` between them), both must report READY.
+The initializer creates registry, product, policy, reference exports, an inventory template,
+metrics schema and secret exclusions. Re-running preserves existing files; adding a product
+merges its slug into the registry. `--force` overwrites the selected product's files, so use it
+only to intentionally reset those templates. Malformed existing registries fail before writing.
+No `apply.py`, secret-capture helper or Discord listener is generated.
+
+`DRAFT READY` means configuration and local documentation root checks passed. It does not mean
+the host hook, public-document freshness, Discord transport or a semantic judge was tested.
+
+## Private data and secrets (E6)
+
+Version policies, non-secret product configuration, inventories and actual runtime records in
+the PRIVATE companion. `secrets/*`, environment files and credential files remain gitignored;
+back up credentials separately. Never copy production records into public examples or fixtures.
+
+## Switching products (E5)
+
+Point `AUTO_SUPPORT_CONFIG` at the new companion for doctor and state discovery, and
+`AUTO_SUPPORT_POLICY` at its selected product policy for CLI and hook. Run the doctor against
+each configuration after filling its root. `--root`, when supplied to the draft CLI, must match
+the selected product; it cannot widen the policy to a different directory.
+
+## README integration (E7)
+
+Both README language editions include the same runnable draft setup and Config section.
+The detailed delivery boundary is in `skills/auto-support/reference/escalation.md`.

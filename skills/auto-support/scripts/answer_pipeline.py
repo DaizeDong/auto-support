@@ -11,26 +11,34 @@ Every gate is fail-closed: the only outcomes are a *draft* (which in MVP goes to
 review channel, never straight to the user), or one of {cancelled, abstain, escalate,
 blocked-leak} — and the user only ever sees a grounded answer or one neutral refusal line.
 
-`generate` is injected so a real LLM can replace the deterministic extractor without touching
-the security gates. The default extractor returns ONLY retrieved public snippets with
-citations, so the whole pipeline runs in CI with no LLM and no network — which is exactly how
-the red-team suite exercises it.
+`generate` is injected for controlled integrations. Every accepted response must still be a
+literal retrieved excerpt; free paraphrases require a separate verified integration. The default extractor returns ONLY retrieved public snippets with
+citations. Separating large prose chapters also requires a semantic scope interpretation.
+The test suite intercepts that model transport, preserving offline execution while exercising
+the production source binding, dependency closure and answer gates.
 """
 from __future__ import annotations
 
 import os
+import re
 import sys
 from dataclasses import dataclass, field, asdict
 from typing import Callable
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import guardrails as G            # noqa: E402
 import retrieval as R            # noqa: E402
 import grounding as GR           # noqa: E402
 import egress_dlp as E           # noqa: E402
+import policy as P               # noqa: E402
 
 INTENTS = ("product_usage_question", "chitchat", "off_topic", "sensitive_or_injection", "unclear")
 _CHITCHAT = ("hi", "hello", "hey", "thanks", "thank you", "lol", "gm", "good morning", "ty")
+_GREETING_PREFIX = re.compile(
+    r"^(?:" + "|".join(re.escape(word) for word in _CHITCHAT) + r")(?:[\s!?,.;:，。！？]+|$)",
+    re.IGNORECASE,
+)
 _PRODUCT_HINTS = ("how", "where", "what", "why", "can i", "does", "setup", "install", "config",
                   "error", "use", "api", "rate limit", "pricing", "docs", "feature", "support")
 
@@ -53,29 +61,28 @@ def classify_intent(query: str) -> str:
         return "unclear"
     if G.detect_injection(query).suspicious:
         return "sensitive_or_injection"
-    if any(q == c or q.startswith(c + " ") or q.startswith(c + "!") for c in _CHITCHAT) and len(q) < 30:
+    greeting = _GREETING_PREFIX.match(q)
+    content = q[greeting.end():] if greeting else q
+    if greeting and not content:
         return "chitchat"
-    if any(h in q for h in _PRODUCT_HINTS) or q.endswith("?"):
+    if any(h in content for h in (*_PRODUCT_HINTS, "如何", "怎么", "安装", "配置", "错误", "文档")) or content.endswith(("?", "？")):
         return "product_usage_question"
+    if greeting and len(q) < 30:
+        return "chitchat"
     return "unclear"
 
 
 def _default_generate(query: str, snippets: list[GR.Snippet]) -> dict:
-    """Deterministic grounded extractor: emit ONLY retrieved public lines, each with its
-    citation embedded so the grounding gate can verify it. Never invents text.
-
-    Internal terminal punctuation (. ? !) is neutralised so the citation cannot be split off
-    its claim by the sentence splitter -> one snippet stays one grounded sentence."""
-    import re as _re
+    """Deterministic grounded extractor: emit ONLY complete public source spans with their
+    citation embedded so the grounding gate can verify the literal excerpt."""
     sents, cites = [], []
     for s in snippets:
-        clean = _re.sub(r"[.!?]+", " ", s.text).strip().rstrip(" ,")
-        if not clean:
+        if not s.text.strip():
             continue
-        sents.append("%s [%s:%d]." % (clean, s.path, s.line))
+        sents.append(GR.render_excerpt(s))
         cites.append("%s:%d" % (s.path, s.line))
     return {
-        "response_text": " ".join(sents),
+        "response_text": "\n".join(sents),
         "needs_escalation": False,
         "cited_sources": cites,
         "cited_internal_paths": [],     # canary, stays empty
@@ -101,17 +108,37 @@ def handle(query: str, root: str, allowlist, denylist, *,
                         response_text=E.NEUTRAL_REFUSAL, reasons=["entry:unclear"])
 
     # ---- Gate 2: retrieval (allowlist only; snippets already secret-scrubbed) ----
-    raw = R.search(root, query, allowlist, denylist)
-    snippets = [GR.Snippet(s.path, s.line, s.text) for s in raw]
+    # Greetings add no product evidence requirements; injection checked the full query.
+    lookup_query = _GREETING_PREFIX.sub("", query.strip(), count=1)
+    raw = R.search(root, lookup_query, allowlist, denylist)
+    if not getattr(raw, "complete", True):
+        return Decision("escalate", intent, trigger="no_evidence",
+                        response_text=E.NEUTRAL_REFUSAL, reasons=["retrieval:incomplete_units"])
+    snippets = [GR.Snippet(s.path, s.line, s.text, getattr(s, "required_citations", ())) for s in raw]
     if not snippets:
         return Decision("escalate", intent, trigger="no_evidence",
                         response_text=E.NEUTRAL_REFUSAL, reasons=["retrieval:empty"])
 
     # ---- Gate 3a: generation (grounded-only) ----
     answer = generate(query, snippets)
+    # Validate structure before consuming model-provided fields. Only unchanged
+    # excerpts have an executable faithfulness proof in this draft implementation.
+    eg = E.evaluate(answer, allowlist=allowlist, denylist=denylist)
+    if not eg.allowed:
+        leak = any(r.startswith(("secret:", "pii:", "canary:")) or r == "markdown-exfil-channel" for r in eg.reasons)
+        return Decision("blocked-leak" if leak else "escalate", intent,
+                        trigger="suspected_leak" if leak else "egress_block",
+                        response_text=E.NEUTRAL_REFUSAL, reasons=["egress:" + r for r in eg.reasons])
+    if eg.escalate:
+        return Decision("escalate", intent, trigger="generation_escalation",
+                        response_text=E.NEUTRAL_REFUSAL)
+    literal = GR.literal_citations(eg.response_text, snippets)
+    if literal is None or set(answer.get("cited_sources", [])) != literal:
+        return Decision("escalate", intent, trigger="unverified_generation",
+                        response_text=E.NEUTRAL_REFUSAL, reasons=["grounding:literal_evidence_required"])
 
     # ---- Gate 3b: grounding (have-evidence-or-abstain) ----
-    g = GR.classify(query, answer.get("response_text", ""), snippets,
+    g = GR.classify(lookup_query, answer.get("response_text", ""), snippets,
                     retrieval_min, faithfulness_min, high_band)
     if not g.grounded:
         return Decision("escalate", intent, trigger="low_confidence",
@@ -119,40 +146,45 @@ def handle(query: str, root: str, allowlist, denylist, *,
                         retrieval_confidence=g.retrieval_confidence, faithfulness=g.faithfulness,
                         reasons=["grounding:low band=%s" % g.band])
 
-    # ---- Gate 4: egress (schema + DLP + citation integrity) ----
-    eg = E.evaluate(answer, allowlist=allowlist, denylist=denylist)
-    if not eg.allowed:
-        leak = any(r.startswith(("secret:", "pii:", "canary:")) or r in ("markdown-exfil-channel",)
-                   for r in eg.reasons)
-        return Decision("blocked-leak" if leak else "escalate", intent,
-                        trigger="suspected_leak" if leak else "egress_block",
-                        response_text=E.NEUTRAL_REFUSAL,
-                        retrieval_confidence=g.retrieval_confidence, faithfulness=g.faithfulness,
-                        reasons=["egress:" + r for r in eg.reasons])
-
     # passed all four gates -> DRAFT (MVP: goes to founder review, not auto-sent)
     return Decision("answered", intent, trigger="",
                     response_text=eg.response_text,
                     retrieval_confidence=g.retrieval_confidence, faithfulness=g.faithfulness,
-                    citations=g.cited_paths)
+                    citations=sorted(literal))
 
 
 def main():
     import argparse, json
     ap = argparse.ArgumentParser(description="run the auto-support four-gate pipeline on one message")
-    ap.add_argument("--root", required=True)
+    ap.add_argument("--root", help="public product root; must match the selected policy")
     ap.add_argument("--query", required=True)
     ap.add_argument("--policy")
+    ap.add_argument("--demo", action="store_true", help="explicitly use built-in draft defaults")
     a = ap.parse_args()
-    allow = ["README*", "docs/**", "public-faq/**", "CHANGELOG*", "examples/**", "**/*.example"]
-    deny = ["**/.env", "**/.env.*", "*.pem", "*.key", "secrets/**", "src/**", "internal/**",
-            "algorithms/**", "proprietary/**", "**/customer_data/**", "**/*.pii.*"]
-    if a.policy and os.path.isfile(a.policy):
-        pol = json.load(open(a.policy, encoding="utf-8"))
-        allow = pol.get("index_allowlist", allow)
-        deny = pol.get("secret_denylist", deny)
-    d = handle(a.query, a.root, allow, deny)
-    print(json.dumps(asdict(d), ensure_ascii=False, indent=2))
+    selected = a.policy or os.environ.get("AUTO_SUPPORT_POLICY")
+    if a.demo and selected:
+        ap.error("--demo cannot override an explicit policy or AUTO_SUPPORT_POLICY")
+    try:
+        if selected:
+            pol = P.load_policy(selected)
+            root = P.resolve_product_root(selected, pol)
+            if a.root and Path(a.root).expanduser().resolve() != root:
+                raise P.PolicyError("--root does not match the selected product policy")
+            allow, deny = pol["index_allowlist"], pol["secret_denylist"]
+            thresholds = {key: pol["confidence"][key] for key in P.DEFAULT_CONFIDENCE}
+        elif a.demo and a.root:
+            root = Path(a.root).expanduser().resolve()
+            if not root.is_dir():
+                raise P.PolicyError("demo root directory does not exist")
+            allow, deny, thresholds = P.DEFAULT_ALLOW, P.DEFAULT_DENY, P.DEFAULT_CONFIDENCE
+        else:
+            ap.error("select --policy (or AUTO_SUPPORT_POLICY); use --demo --root only for a demo")
+    except P.PolicyError as exc:
+        ap.error(str(exc))
+    # This command always returns a draft. Delivery modes are deployment capabilities.
+    d = handle(a.query, str(root), allow, deny, **thresholds)
+    # ASCII JSON preserves Unicode through escapes on legacy Windows consoles too.
+    print(json.dumps(asdict(d), indent=2))
     return 0
 
 

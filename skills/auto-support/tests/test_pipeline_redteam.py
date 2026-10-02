@@ -103,15 +103,15 @@ def test_offtopic_cancelled():
 
 def test_egress_blocks_canary_payloads():
     import egress_dlp as E
-    bad_secret = {"response_text": "your key is FAKE_REDTEAM_STRIPE_CANARY_A1B2C3D4E5F6G7H8I9J0K1L2",
+    bad_secret = {"needs_escalation": False, "response_text": "your key is FAKE_REDTEAM_STRIPE_CANARY_A1B2C3D4E5F6G7H8I9J0K1L2",
                   "cited_sources": ["README.md:1"], "cited_internal_paths": [], "contains_secret": False}
-    assert not E.evaluate(bad_secret, ALLOW, DENY).allowed
-    bad_canary_field = {"response_text": "ok", "cited_sources": [],
+    assert any(r.startswith("secret:") for r in E.evaluate(bad_secret, ALLOW, DENY).reasons)
+    bad_canary_field = {"needs_escalation": False, "response_text": "ok", "cited_sources": [],
                         "cited_internal_paths": ["src/ranking.py"], "contains_secret": False}
-    assert not E.evaluate(bad_canary_field, ALLOW, DENY).allowed
-    bad_cite = {"response_text": "see internal file for details here", "cited_sources": ["src/ranking.py:2"],
+    assert "canary:cited_internal_paths-nonempty" in E.evaluate(bad_canary_field, ALLOW, DENY).reasons
+    bad_cite = {"needs_escalation": False, "response_text": "see internal file for details here", "cited_sources": ["src/ranking.py:2"],
                 "cited_internal_paths": [], "contains_secret": False}
-    assert not E.evaluate(bad_cite, ALLOW, DENY).allowed
+    assert any(r.startswith("citation-outside-allowlist:") for r in E.evaluate(bad_cite, ALLOW, DENY).reasons)
     # the neutral refusal must never reveal WHY
     d = E.evaluate(bad_secret, ALLOW, DENY)
     assert "secret" not in d.response_text.lower() and "canary" not in d.response_text.lower()

@@ -16,8 +16,10 @@ It provides four primitives, each fail-CLOSED (when unsure -> treat as a hit -> 
   4. detect_injection(text)                     -> prompt-injection / social-engineering
   + spotlight(text)                             -> wrap untrusted content (Microsoft spotlighting)
 
-Nothing here ever logs a raw secret: matches are reported by rule name + a salted hash
-prefix only. See reference/security-model.md for the architecture these primitives realise.
+Sensitive matches are reported by rule name and the first 12 hexadecimal digits of
+unsalted SHA-256, without the raw match. These deterministic prefixes allow correlation
+and guesses from likely inputs; they do not anonymize sensitive values.
+See reference/security-model.md for the architecture these primitives realise.
 """
 from __future__ import annotations
 
@@ -44,7 +46,7 @@ _ZW_RE = re.compile("[" + re.escape(_ZERO_WIDTH) + "]")
 
 
 def _hash_prefix(s: str) -> str:
-    """Stable, non-reversible fingerprint of a sensitive match (NEVER store the raw value)."""
+    """Return an unsalted SHA-256 prefix; likely inputs can be guessed and correlated."""
     return "sha256:" + hashlib.sha256(s.encode("utf-8", "replace")).hexdigest()[:12]
 
 
@@ -524,9 +526,9 @@ def _b85_views(text: str) -> list[str]:
     # Match ANY run of printable non-space ASCII (0x21-0x7e). The old class was the RFC1924 (b85)
     # alphabet only, so an Adobe ascii85 blob containing ':' '"' ',' '.' '/' '[' '\\' ']' (all valid
     # a85 chars) was never matched -> a secret emitted as ascii85 slipped the DLP entirely. The broad
-    # class + strict a85/b85 decoders (invalid blobs raise and are skipped) closes that channel; a
-    # decoded non-payload is gibberish that matches no credential SHAPE (no benign false block).
-    for m in re.finditer(r"[\x21-\x7e]{20,}", text):
+    # class admits either alphabet. Short encoded PII also needs decoding: an 11-byte
+    # synthetic SSN produces only 14 characters. Decoded views still need a detector hit.
+    for m in re.finditer(r"[\x21-\x7e]{8,}", text):
         blob = m.group(0).strip("<~>")  # tolerate Adobe <~ ... ~> delimiters
         for dec in (base64.b85decode, base64.a85decode):
             try:

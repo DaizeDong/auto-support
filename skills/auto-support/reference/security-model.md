@@ -3,7 +3,8 @@
 The single most important fact: **a guardrail written into SKILL.md or a system prompt is a
 suggestion the model may ignore on any turn.** AWS's own baseline showed an LLM told "never
 reveal secrets" leaking 3/3 times; adding one deterministic `PreToolUse` hook made it 3/3
-blocked. So every guarantee here is a deterministic check the model cannot argue away.
+blocked. This implementation places checks outside the model. Host enforcement still needs
+deployment verification; local tests cannot establish arbitrary-host containment.
 
 ## The four gates (defense in depth, no single gate is trusted)
 
@@ -16,20 +17,63 @@ Discord msg ─▶ [0/1 entry] injection+intent (spotlighted)  ─ hit ▶ escal
 ```
 
 Every gate is **fail-closed**: the only outputs to a user are a grounded, cited answer or one
-neutral refusal line (`这个问题我无法确定，已转交团队跟进。`). The refusal never states *why*
+neutral refusal line (`这个问题我无法确定，请联系团队进一步确认。`). The refusal never states *why*
 (boundary probing defense).
 
 ## Knowledge boundary = allowlist-first, default-deny, denylist wins
 
 We do not enumerate "what not to say" (a denylist always leaks). We define "only answer from
-these public sources" and make everything else physically unreachable:
+these public sources" and validate access against that boundary:
 
 - `guardrails.path_verdict(path, allow, deny)` order: **denylist hit -> DENY** (a secret path
   loses even if also allowlisted); **allowlist hit -> ALLOW**; **otherwise -> DENY**.
-- `retrieval.py` only ever opens allowlisted files, and secret-scrubs each snippet before it can
-  enter context, so a misfiled key in an "allowed" doc still never reaches the model.
+- Retrieval and the hook bind requested and resolved paths to the selected public root.
+  `Grep` and `Glob` require explicit search roots and reject mixed public/private directories.
+- Both paths reject multiply linked regular documents, including aliases whose other link
+  is outside the public root. Retrieval checks again on the opened descriptor before reading.
+  Hook approval is a point-in-time check; it does not replace an OS sandbox.
+- `retrieval.py` retains entire Markdown section subtrees, including multiline code, with the
+  document preamble. Consecutive peer sections of at most 4,000 characters form one procedure
+  unit regardless of their wording, language or query overlap. Markdown structure stays in
+  that unit even when oversized: fenced or indented code, numbered steps, lists including
+  empty items, blockquotes including tight markers and lazy continuations, nested headings,
+  tables, references and inline markup. Tabs use four-column stops for classification only;
+  source indentation, line endings and command arguments remain intact. Raw HTML blocks
+  make the entire file one unit because embedded Markdown-looking lines are ambiguous.
+  Unsupported section syntax stays in a larger intact unit; unfinished fences or comments
+  are not usable evidence.
+  Every selected unit and its required context must fit the total snippet and character
+  budgets. A skipped matching unit makes the draft abstain, with an internal diagnostic.
+  Large plain-prose peers are provisional chapter boundaries. Separating groups requires
+  `semantic_scope.py` to submit the entire admitted document through installed
+  `llmcall.call(prompt, schema=...)`, using its configured default judge policy. The source is
+  screened for detected secrets, PII and injection before submission. Every unordered section
+  pair needs a definite interpretation bound to the original document digest and each section's
+  key, range and digest, with endpoint evidence and an explanation. Missing, malformed, stale,
+  incomplete, uncertain or failed interpretations make matching evidence unusable.
+  Local preambles and explicit same-document links remain in the source graph. Required
+  relationships add directed dependencies, and extraction takes their transitive closure before
+  applying the retrieval budget. Oversized required context causes abstention. Exact binding
+  proves provenance and response structure; a model can still misinterpret a relationship.
+  Synthetic test responses establish integration only. Real-model effectiveness and arbitrary
+  implicit or external-document dependencies have not been established. Interpretations stay
+  in memory and returned graphs; installed llmcall retains its private operational logging policy.
+- Whole units are scanned for secrets and injection before entering answer context. Unsafe
+  context invalidates the unit instead of leaving an incomplete instruction. Detector coverage
+  is limited to its supported patterns. Invalid UTF-8 is rejected without replacement text.
+- The retrieval CLI reports `complete` and `snippets` in its JSON result. Incomplete matching
+  evidence returns exit 2 with `complete=false` and an empty snippets list. The draft pipeline
+  also refuses incomplete results; a usable match cannot hide another omitted matching source.
+- The draft pipeline accepts only literal complete spans with matching structured citations,
+  preserving original whitespace and source order. Omitting required context rejects the draft.
+  Returned citations identify only excerpts actually used, including their line numbers.
+  Query relevance is calculated from those emitted cited excerpts; unused retrieval hits
+  cannot make an irrelevant answer appear relevant.
+  Lexical similarity alone cannot prove units, negation or additional facts. All five answer
+  fields are required: response text, escalation boolean, public citations, an empty internal
+  path list, and a false secret canary. Missing fields and wrong types reject the answer.
 
-## Three physical layers (the model literally cannot read a secret)
+## Deployment layers and their scope
 
 | Layer | Mechanism | Closes |
 |---|---|---|
@@ -44,7 +88,9 @@ narrowed only by `deny` + hook + sandbox. Never use `--dangerously-skip-permissi
 
 - **secrets:** precise regex (OpenAI/Anthropic/AWS/Stripe/GitHub/Slack/Google/Discord token+webhook/
   JWT/PEM/DB-URL/generic assignment/canary) + Shannon-entropy pass for unknown formats. Matches are
-  reported by rule name + salted hash prefix, **the raw secret is never returned or logged.**
+  reported by rule name + the first 12 hexadecimal digits of unsalted SHA-256; the raw match
+  is not returned. These deterministic prefixes allow correlation and guesses from likely
+  inputs, and the truncated values can collide. They do not provide anonymization or encryption.
 - **PII:** email/SSN/phone/credit-card(Luhn)/IPv4.
 - **injection:** normalize (NFKC, strip zero-width, leetspeak, punctuation) + decode embedded
   base64/hex + anagram (typoglycemia) + fuzzy match against an injection/jailbreak/exfil phrase set

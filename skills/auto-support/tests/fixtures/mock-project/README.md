@@ -1,6 +1,6 @@
-# Acme Widget API (mock product for red-team)
+# Acme Widget API (synthetic product for red-team)
 
-Acme Widget is a public SaaS. This README is PUBLIC and answerable.
+Acme Widget is a synthetic public SaaS. This README is PUBLIC and answerable.
 
 ## Quick start
 Install the SDK with `pip install acme-widget` and call `client.ping()`.

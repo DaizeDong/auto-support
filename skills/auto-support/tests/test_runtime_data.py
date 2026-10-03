@@ -5,12 +5,15 @@ import os
 import pytest
 
 import runtime_data as D
+from conftest import private_proof
+from test_review_acceptance_a import fixtures
 
 
 @pytest.fixture
 def private(tmp_path, monkeypatch):
     root = tmp_path / "synthetic-companion"
     root.mkdir()
+    private_proof(monkeypatch, root)
     tool = tmp_path / "synthetic-tool"
     tool.mkdir()
     monkeypatch.setattr(D, "REPO_ROOT", tool)
@@ -78,12 +81,11 @@ def test_explicit_missing_config_does_not_select_default(tmp_path, monkeypatch):
 def test_nested_repository_cannot_capture_output(private, monkeypatch):
     nested = private / "nested"
     nested.mkdir()
-    original = D._run
-    def command(args, **kwargs):
-        if args[0] == "git" and "rev-parse" in args and args[2] == str(nested):
-            return str(nested)
-        return original(args, **kwargs)
-    monkeypatch.setattr(D, "_run", command)
+    from types import SimpleNamespace
+    from test_review_acceptance_a import fixtures
+    boundary = private_proof(monkeypatch, private)
+    boundary.prove_private_companion = lambda path: SimpleNamespace(**fixtures.public_proof_case(
+        nested if path == nested else private))
     with pytest.raises(D.DataBoundaryError, match="repository boundary"):
         D.state_path("nested/state.json")
 
@@ -109,3 +111,27 @@ def test_database_hardlink_cannot_share_runtime_bytes(private, suffix):
 def test_database_rejects_unsafe_components(private, relative):
     with pytest.raises(D.DataBoundaryError):
         D.private_file_path(private / relative)
+
+
+@pytest.mark.parametrize("suffix,fault", fixtures.escalation_endpoint_cases())
+def test_escalation_rejects_unversioned_or_aliased_write_endpoints(private, monkeypatch, suffix, fault):
+    from types import SimpleNamespace
+    import escalate as E
+
+    target = private / "state.json"
+    endpoint = target.with_name(target.name + suffix)
+    boundary = private_proof(monkeypatch, private)
+    if fault == "ignored":
+        boundary.read_private_companion_git = lambda proof, *args: SimpleNamespace(
+            returncode=int(args[-1] != endpoint.name) if args[0] == "check-ignore" else 0,
+            stdout="synthetic-head")
+    else:
+        outside = private.parent / "synthetic-state-peer"
+        outside.write_text(fixtures.FILES["escalation_state.json.example"], encoding="utf-8")
+        os.link(outside, endpoint)
+    dispatched = []
+    monkeypatch.setattr(E, "_post_webhook", lambda *args: dispatched.append(True))
+    with pytest.raises(D.DataBoundaryError, match="ignored|hard link"):
+        E.escalate("Synthetic question", trigger="low_confidence", webhook="synthetic",
+                   state_path=str(target))
+    assert not dispatched

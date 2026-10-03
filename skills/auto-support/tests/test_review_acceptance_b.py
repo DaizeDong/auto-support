@@ -121,8 +121,8 @@ def test_hook_enforces_inode_boundary_for_every_read_path(tmp_path, linked, tool
         inputs = {"path": str(alias.parent), "pattern": "setup" if tool == "Grep" else "*.md"}
     else:
         inputs = {"command": tool + ' "' + alias.as_posix() + '"'}
-    event = {"tool_name": tool if tool in {"Read", "Grep", "Glob"} else "Bash",
-             "tool_input": inputs, "cwd": str(root)}
+    event = fixtures.hook_event(tool if tool in {"Read", "Grep", "Glob"} else "Bash",
+                                inputs, cwd=str(root))
     # The default policy root is the hook subprocess working directory.
     env = {key: value for key, value in os.environ.items() if not key.startswith("AUTO_SUPPORT_")}
     result = subprocess.run([sys.executable, "-B", str(HOOK)], input=json.dumps(event),

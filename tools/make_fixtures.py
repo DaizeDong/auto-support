@@ -9,6 +9,7 @@ from pathlib import Path
 FILES = {
     "escalation_state.json.example": "{}\n",
     "escalation_state.json.lock.example": "escalation dispatch in progress\n",
+    "escalation_state.json.tmp.example": "{}\n",
 }
 
 # Stable, obvious fake tokens used by the existing security assertions.
@@ -367,8 +368,8 @@ def retrieval_completeness_case(root, kind):
 def companion_repository_case(root, kind):
     """Generate Git administration with synthetic fetch and publication settings.
 
-    No repository is fetched, committed, or published. Tests retire the .git directory
-    after the read-only Git control so it cannot become a runtime data destination.
+    History consists of generated synthetic Git objects; no Git commit, fetch or push
+    command runs. Tests retire the .git directory after the read-only Git control.
     """
     root = Path(root)
     private = "https://github.com/example-owner/example-config.git"
@@ -402,7 +403,27 @@ def companion_repository_case(root, kind):
     (admin / "refs/heads").mkdir(parents=True)
     (admin / "HEAD").write_text("ref: refs/heads/main\n", encoding="ascii")
     (admin / "config").write_text(config, encoding="utf-8", newline="\n")
+    synthetic_git_history(admin)
     return root
+
+
+def synthetic_git_history(admin):
+    """Generate an empty tree and synthetic commit without running Git commit."""
+    import hashlib
+    import zlib
+    admin = Path(admin)
+    def object_id(kind, body):
+        raw = kind.encode("ascii") + b" " + str(len(body)).encode("ascii") + b"\0" + body
+        identity = hashlib.sha1(raw).hexdigest()
+        target = admin / "objects" / identity[:2] / identity[2:]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(zlib.compress(raw))
+        return identity
+    tree = object_id("tree", b"")
+    body = ("tree " + tree + "\nauthor Fixture User <user1@example.com> 0 +0000\n"
+            "committer Fixture User <user1@example.com> 0 +0000\n\nSynthetic fixture history\n")
+    commit = object_id("commit", body.encode("utf-8"))
+    (admin / "refs/heads/main").write_text(commit + "\n", encoding="ascii")
 
 
 def companion_transport_kinds():
@@ -726,3 +747,99 @@ def lock_initialization_cases():
 def existing_lock_contents():
     """Generate pre-existing locks, including one with an empty payload."""
     return [b"", b"escalation dispatch in progress\n", b"synthetic unresolved dispatch\n"]
+
+
+def hook_event(tool_name, tool_input, **fields):
+    """Generate a normal host envelope for synthetic hook boundary checks."""
+    return {"permission_mode": "default", "tool_name": tool_name,
+            "tool_input": tool_input, **fields}
+
+
+def hook_permission_mode_cases():
+    """Generate supported-mode controls and malformed/bypass host metadata."""
+    cases = []
+    for mode in ("default", "plan", "acceptEdits", "auto", "dontAsk"):
+        cases.append({"id": mode, "fields": {"permission_mode": mode}, "allowed": True})
+    for name, mode in (("bypass", "bypassPermissions"), ("null", None), ("empty", ""),
+                       ("unknown", "synthetic-mode"), ("boolean", True), ("number", 1),
+                       ("list", ["default"]), ("object", {"mode": "default"}),
+                       ("padded", " default "), ("case", "DEFAULT")):
+        cases.append({"id": name, "fields": {"permission_mode": mode}, "allowed": False})
+    cases.append({"id": "missing", "fields": {}, "allowed": False})
+    return cases
+
+
+def hook_relay_permission_cases():
+    """Generate inert relay controls for deny-first host rules plus exact hook admission."""
+    relay = "mcp__discord__post_reply"
+    rows = [
+        ("relay-approved", relay, relay, True, [], "ask", 0, True),
+        ("relay-prompt-declined", relay, relay, False, [], "ask", 0, False),
+        ("relay-not-approved-in-hook", relay, "", True, [], "ask", 2, False),
+        ("wildcard-is-not-hook-approval", relay, "mcp__discord__*", True, [], "ask", 2, False),
+        ("inherited-deny-wins", relay, relay, True, ["mcp__*"], "deny", 0, False),
+        ("unknown-tool", "mcp__unknown__execute", relay, True, [], "ask", 2, False),
+        ("reader-tool", "mcp__filesystem__read_file", relay, True, [], "ask", 2, False),
+        ("mutation-tool", "mcp__discord__delete_message", relay, True, [], "ask", 2, False),
+        ("network-tool", "mcp__network__fetch", relay, True, [], "ask", 2, False),
+        ("similar-name", "mcp__discord__post_reply_extra", relay, True, [], "ask", 2, False),
+    ]
+    return [dict(zip(("id", "tool", "hook_allow", "prompt_approved", "inherited_deny",
+                      "host_decision", "hook_returncode", "dispatched"), row)) for row in rows]
+
+
+def public_proof_case(root):
+    """Generate the public companion proof fields and live visibility controls."""
+    return {"root": str(Path(root)),
+            "repositories": ("example-owner/example-config", "example-owner/backup-config"),
+            "signature": "synthetic-stable-signature"}
+
+
+def visibility_receipt(root):
+    """Generate fresh synthetic visibility evidence for the selected Guards API."""
+    from datetime import datetime, timezone
+    import json
+    path = Path(root) / "synthetic-visibility.json"
+    path.write_text(json.dumps({"_refreshed": datetime.now(timezone.utc).isoformat(),
+                                "example-owner/example-config": "PRIVATE",
+                                "example-owner/public-fixture": "PUBLIC"}), encoding="utf-8")
+    return path
+
+
+def public_transport_case(root, kind):
+    """Generate a real Git layout, SSH profile and receipt without ambient data."""
+    root = Path(root)
+    companion = companion_repository_case(root / "companion", "private")
+    profile = root / "profile"
+    (profile / ".ssh").mkdir(parents=True)
+    empty_config = root / "empty.gitconfig"
+    empty_config.write_text("", encoding="utf-8")
+    if kind != "https":
+        config = companion / ".git/config"
+        text = config.read_text(encoding="utf-8")
+        remote = ("ssh://git@sample-alias/example-owner/example-config.git" if kind == "ssh-alias-url"
+                  else "git@sample-alias:example-owner/example-config.git")
+        config.write_text(text.replace("https://github.com/example-owner/example-config.git", remote),
+                          encoding="utf-8")
+        if kind != "ssh-unproved-alias":
+            settings = "Host sample-alias\n  HostName github.com\n  User git\n"
+            if kind == "ssh-mapped-host":
+                settings = settings.replace("github.com", "example.com")
+            if kind == "ssh-proxy":
+                settings += "  ProxyCommand synthetic-unexecuted-command\n"
+            (profile / ".ssh/config").write_text(settings, encoding="utf-8")
+    return {"companion": companion, "profile": profile, "empty_config": empty_config,
+            "allowed": kind in {"https", "ssh-alias", "ssh-alias-url"}}
+
+
+def live_visibility_environment_cases():
+    """Generate gh HTTPS environment controls separately from Git transport policy."""
+    return [(name, "synthetic-override", False) for name in
+            ("http_proxy", "HTTPS_PROXY", "ALL_PROXY", "CURL_CA_BUNDLE", "SSL_CERT_FILE", "SSL_CERT_DIR")] + [
+        ("NO_PROXY", "github.com", True), (None, None, True)]
+
+
+def escalation_endpoint_cases():
+    """Generate the state, dispatch lock and atomic-write endpoint controls."""
+    return [(suffix, fault) for suffix in ("", ".lock", ".tmp")
+            for fault in ("ignored", "hardlink")]

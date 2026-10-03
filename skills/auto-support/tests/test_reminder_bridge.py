@@ -10,6 +10,7 @@ import pytest
 
 import reminder_bridge as RB
 import runtime_data as D
+from conftest import private_proof
 
 BASE = RB.REMINDER_PY
 pytestmark = pytest.mark.skipif(not os.path.isfile(BASE), reason="reminder base not installed")
@@ -17,6 +18,7 @@ pytestmark = pytest.mark.skipif(not os.path.isfile(BASE), reason="reminder base 
 
 @pytest.fixture()
 def db(tmp_path, monkeypatch):
+    private_proof(monkeypatch, tmp_path)
     # Only Git/visibility transport is synthetic; the real reminder CLI owns SQLite.
     def command(argv, **kwargs):
         if argv[0] == "gh":

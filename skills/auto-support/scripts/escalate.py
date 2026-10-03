@@ -25,7 +25,6 @@ import sys
 import time
 import hashlib
 from pathlib import Path
-import tempfile
 import re
 from urllib.parse import urlsplit
 from dataclasses import dataclass
@@ -56,14 +55,18 @@ def _load_state(path: str) -> dict:
 
 
 def _save_state(path: str, state: dict) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=os.path.dirname(path), delete=False) as stream:
-        tmp = stream.name
-        json.dump(state, stream)
+    destination = Path(path)
+    if Path(_state_path(path)) != destination:
+        raise DataBoundaryError("State destination changed before saving")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    tmp = destination.with_name(destination.name + ".tmp")
+    stream = tmp.open("x", encoding="utf-8")
     try:
-        os.replace(tmp, path)
+        with stream:
+            json.dump(state, stream)
+        os.replace(tmp, destination)
     finally:
-        Path(tmp).unlink(missing_ok=True)
+        tmp.unlink(missing_ok=True)
 
 
 @dataclass

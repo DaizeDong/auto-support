@@ -30,6 +30,37 @@ CANARIES = [
 import pytest
 
 
+def hook_event(tool_name, tool_input, **fields):
+    from test_review_acceptance_a import fixtures
+    return fixtures.hook_event(tool_name, tool_input, **fields)
+
+
+def private_proof(monkeypatch, root):
+    """Receipt/path tests inject the supported proof API independently of transport."""
+    from types import SimpleNamespace
+    from test_review_acceptance_a import fixtures
+    import runtime_data
+    boundary = SimpleNamespace(
+        prove_private_companion=lambda path: SimpleNamespace(**fixtures.public_proof_case(root)),
+        read_private_companion_git=lambda proof, *args: SimpleNamespace(
+            returncode=1 if args[0] == "check-ignore" else 0, stdout="synthetic-head"))
+    monkeypatch.setattr(runtime_data, "_boundary_module", lambda: boundary)
+    return boundary
+
+
+def actual_private_proof(monkeypatch, generated_root):
+    """Integration tests use the selected public API with a generated receipt."""
+    import runtime_data
+    from types import SimpleNamespace
+    from test_review_acceptance_a import fixtures
+    boundary = runtime_data._boundary_module()
+    visibility = fixtures.visibility_receipt(generated_root)
+    monkeypatch.setattr(runtime_data, "_boundary_module", lambda: SimpleNamespace(
+        prove_private_companion=lambda path: boundary.prove_private_companion(path, visibility),
+        read_private_companion_git=boundary.read_private_companion_git))
+    return boundary
+
+
 @pytest.fixture(autouse=True)
 def semantic_model(monkeypatch):
     from test_review_acceptance_a import fixtures

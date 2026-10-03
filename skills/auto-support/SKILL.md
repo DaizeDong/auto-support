@@ -29,6 +29,7 @@ four deterministic layers, not from instructions:
    write/network tools) + wires the hook.
 2. `scripts/pretooluse_hook.py` -> fail-closed `PreToolUse` enforcement (exit 2). Covers the
    subprocess gap `permissions.deny` misses (`python open('.env')`, `cat .env`).
+   Requires a supported `permission_mode`; bypassed or missing host permissions block.
 3. `scripts/guardrails.py` -> the leak/injection engine (path boundary, secret+PII detection,
    injection/social-engineering detection, spotlighting). Pure stdlib, no LLM, no network.
 4. `scripts/egress_dlp.py` -> the last gate: structured-output + DLP + canary fields + citation

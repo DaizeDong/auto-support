@@ -8,12 +8,14 @@
   "_audited": "Shipped escalation code records incident hashes and delivery timestamps. runtime_data.py resolves through the pinned guard, rejects destinations inside this tool, requires live PRIVATE visibility for every configured remote's effective fetch and push URLs including Git rewrites, requires default and branch push selections to name verified remotes, and checks path containment before dispatch. Dry runs produce no state; successful deliveries record cooldown state. Runtime data is versioned in the private companion. The reminder bridge uses only the schedule-reminder CLI and verifies each selected absolute database and SQLite sidecar destination in the same PRIVATE repository before invocation; unknown visibility, nested repository escapes and hard links fail before writes.",
   "data": [
     "escalation_state.json",
-    "escalation_state.json.lock"
+    "escalation_state.json.lock",
+    "escalation_state.json.tmp"
   ],
   "data_sealed": [],
   "fixture": [
     "escalation_state.json.example",
     "escalation_state.json.lock.example",
+    "escalation_state.json.tmp.example",
     "skills/auto-support/tests/fixtures/mock-project/.env",
     "skills/auto-support/tests/fixtures/mock-project/README.md",
     "skills/auto-support/tests/fixtures/mock-project/docs/usage.md",

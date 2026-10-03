@@ -5,6 +5,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from conftest import hook_event
+
 import answer_pipeline as A
 import grounding as GR
 import guardrails as G
@@ -21,7 +23,7 @@ from test_first_run_contract import run_script, SCRIPTS, PIPELINE, HOOK
     ("Glob", {"pattern": "README.md"}),
 ])
 def test_hook_rejects_outside_or_unbounded_targets(tool, inputs):
-    assert run_script(HOOK, input_text=json.dumps({"tool_name": tool, "tool_input": inputs})).returncode == 2
+    assert run_script(HOOK, input_text=json.dumps(hook_event(tool, inputs))).returncode == 2
 
 
 @pytest.mark.parametrize("replacement", [
@@ -117,14 +119,14 @@ def test_configured_hook_allows_public_reads_and_searches_only(tmp_path):
         ("Grep", {"pattern": "SDK", "path": "."}),
         ("Glob", {"pattern": "*.md", "path": "."}),
     ]:
-        event = {"tool_name": tool, "tool_input": inputs, "cwd": str(docs)}
+        event = hook_event(tool, inputs, cwd=str(docs))
         result = run_script(HOOK, input_text=json.dumps(event), env=env)
         assert result.returncode == 0, result.stderr
     private = docs / "secrets"
     private.mkdir()
     (private / "record.md").write_text("synthetic private record")
     for tool in ("Grep", "Glob"):
-        event = {"tool_name": tool, "tool_input": {"path": ".", "pattern": "*.md"}, "cwd": str(docs)}
+        event = hook_event(tool, {"path": ".", "pattern": "*.md"}, cwd=str(docs))
         assert run_script(HOOK, input_text=json.dumps(event), env=env).returncode == 2
 
 

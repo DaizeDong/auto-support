@@ -84,6 +84,17 @@ these public sources" and validate access against that boundary:
 `allowed-tools` is **not** a restriction, Anthropic states it is pre-approval; capability is
 narrowed only by `deny` + hook + sandbox. Never use `--dangerously-skip-permissions`.
 
+The hook requires the host's `permission_mode` field on every `PreToolUse` event.
+It accepts `default`, `plan`, `acceptEdits`, `auto` and `dontAsk`, then applies the same
+read-only tool boundary in every mode. `bypassPermissions`, missing metadata, malformed
+values and unknown modes block before any tool is admitted. See the official
+[hook input contract](https://code.claude.com/docs/en/hooks#common-input-fields).
+If a runner defaults to permission bypass or omits this field, configure that runner
+to preserve host permissions before deployment. Do not remove the check to accommodate it.
+This check only runs when the host dispatches the hook. Verify discovery and dispatch in
+the actual host, including a permitted public read and denied secret read, write and network
+attempts. Directly piping JSON into the script verifies its protocol, not native host dispatch.
+
 ## Detection primitives (`guardrails.py`, all stdlib, all testable in CI)
 
 - **secrets:** precise regex (OpenAI/Anthropic/AWS/Stripe/GitHub/Slack/Google/Discord token+webhook/

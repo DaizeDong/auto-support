@@ -8,6 +8,7 @@ import subprocess
 import pytest
 
 import runtime_data as D
+from conftest import actual_private_proof, private_proof
 
 ROOT = Path(__file__).resolve().parents[3]
 spec = importlib.util.spec_from_file_location("administration_fixtures", ROOT / "tools/make_fixtures.py")
@@ -18,6 +19,7 @@ spec.loader.exec_module(fixtures)
 @pytest.mark.parametrize("kind", fixtures.companion_administration_kinds())
 @pytest.mark.parametrize("purpose", ["database", "escalation"])
 def test_physical_repository_proof_rejects_administrative_redirection(tmp_path, monkeypatch, kind, purpose):
+    actual_private_proof(monkeypatch, tmp_path)
     case = fixtures.companion_administration_case(tmp_path, kind)
     for name in tuple(os.environ):
         if name.startswith(("GIT_", "AUTO_SUPPORT_")):
@@ -39,7 +41,7 @@ def test_physical_repository_proof_rejects_administrative_redirection(tmp_path, 
             visibility = {"repos/example-owner/example-config": "true",
                           "repos/example-owner/public-fixture": "false"}
             return subprocess.CompletedProcess(argv, 0, visibility[argv[4]] + "\n", "")
-        assert argv[:2] == ["git", "-C"]
+        assert Path(argv[0]).stem.casefold() == "git"
         return actual_run(argv, **kwargs)
 
     monkeypatch.setattr(subprocess, "run", transport)
@@ -69,7 +71,7 @@ def test_physical_repository_proof_rejects_administrative_redirection(tmp_path, 
     ("test_reminder_bridge.py", "db"),
     ("test_review_acceptance_a.py", "test_reminder_rejects_unproven_database_before_invocation"),
 ])
-def test_existing_private_command_callback_covers_inventory(tmp_path, monkeypatch, relative, fixture_name):
+def test_existing_visibility_callback_supports_public_proof_adapter(tmp_path, monkeypatch, relative, fixture_name):
     case = fixtures.companion_administration_case(tmp_path, "private")
     source = Path(__file__).with_name(relative).read_text(encoding="utf-8")
     outer = next(node for node in ast.parse(source).body
@@ -80,6 +82,7 @@ def test_existing_private_command_callback_covers_inventory(tmp_path, monkeypatc
                  "tmp_path": case["physical"], "visibility": "true"}
     exec(compile(module, relative, "exec"), namespace)
     monkeypatch.setattr(D, "REPO_ROOT", case["tool"])
+    private_proof(monkeypatch, case["physical"])
     monkeypatch.setattr(D, "_run", namespace["command"])
     target = case["physical"] / "support.db"
     assert D.private_file_path(target) == target

@@ -12,11 +12,13 @@ import os
 import subprocess
 import sys
 
+from conftest import hook_event
+
 HOOK = os.path.join(os.path.dirname(__file__), "..", "scripts", "pretooluse_hook.py")
 
 
 def _run(evt: dict) -> int:
-    p = subprocess.run([sys.executable, HOOK], input=json.dumps(evt),
+    p = subprocess.run([sys.executable, HOOK], input=json.dumps(hook_event(**evt)),
                        capture_output=True, text=True)
     return p.returncode
 

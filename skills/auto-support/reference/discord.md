@@ -31,6 +31,24 @@ the answer flow.
 
 ## Tooling boundary
 This bot needs exactly three capabilities: local read-only retrieval, Discord post-reply, founder
-relay. Expose Discord as a controlled MCP server; `deny` `mcp__*` broadly then allow only the
-specific verbs (e.g. `mcp__discord__post_reply`) via `AUTO_SUPPORT_MCP_ALLOW`. No write/delete/
-payment/arbitrary-HTTP tools, `pretooluse_hook.py` denies them deterministically.
+relay. Use a controlled MCP server and select only the exact relay capability needed in the
+active host. `mcp__discord__post_reply` in the template is an example; verify the actual callable
+name before deployment.
+
+The product settings template uses normal permission mode and places the selected exact relay
+in `permissions.ask`. Set `AUTO_SUPPORT_MCP_ALLOW` to that same exact name for the mandatory
+`pretooluse_hook.py` check. The hook rejects every unlisted MCP tool; wildcard entries do not
+match tool names. Do not add a wildcard MCP allow, enable bypass mode or disable the hook.
+Other MCP read/write/delete/payment/arbitrary-HTTP capabilities remain outside this allowlist.
+
+Claude Code evaluates permissions in [deny, ask, allow order](https://code.claude.com/docs/en/permissions).
+A broad `mcp__*` deny also blocks the selected relay; a more specific allow or ask cannot override
+it. Inspect effective project, user and managed settings before deployment. If any deny matches
+the relay, leave delivery disabled until the responsible policy owner resolves that conflict.
+Do not bypass the policy to make the integration work.
+
+Hook exit 0 only lets the request continue through host permissions. The selected relay still
+requires the normal permission prompt as well as the human approval described above. Verify
+that the host discovers the installed hook, dispatches it for the selected tool, and blocks
+unapproved tools before enabling delivery. Inert hook tests establish the local protocol and
+settings consistency; they do not prove native host dispatch or actual message delivery.

@@ -8,7 +8,7 @@ write/delete anything, or reach the network. permissions.deny alone is bypassabl
 cover python/node `open()`, and issue #27040 shows deny rules can be skipped) — so the boundary
 lives HERE, where it cannot be argued away.
 
-Protocol (Anthropic hooks): stdin = JSON {tool_name, tool_input{...}}. exit 0 = allow,
+Protocol (Anthropic hooks): stdin = JSON {permission_mode, tool_name, tool_input{...}}. exit 0 = allow,
 exit 2 = block + stderr shown to model. fail-closed: ANY parse error / unknown tool / unreadable
 policy => exit 2 (deny). Policy (allowlist/denylist) from $AUTO_SUPPORT_POLICY or built-in defaults.
 """
@@ -37,6 +37,8 @@ READ_TOOLS = {"Read", "Grep", "Glob", "NotebookRead"}
 # Tools that mutate or exfiltrate -> always denied for a read-only support bot.
 WRITE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit", "Update"}
 NET_TOOLS = {"WebFetch", "WebSearch"}
+# Recognized modes that keep the host permission layer enabled.
+PERMISSION_MODES = {"default", "plan", "acceptEdits", "auto", "dontAsk"}
 
 
 def _load_policy():
@@ -135,6 +137,9 @@ def main():
         block("unparseable hook payload -> fail-closed deny")
     if not isinstance(evt, dict):
         block("hook payload must be an object")
+    permission_mode = evt.get("permission_mode")
+    if not isinstance(permission_mode, str) or permission_mode not in PERMISSION_MODES:
+        block("permission mode is missing, unsupported, or bypassed -> fail-closed deny")
     tool = evt.get("tool_name") or evt.get("tool") or ""
     ti = evt.get("tool_input") or evt.get("input") or {}
     if not isinstance(ti, dict) or not isinstance(tool, str):

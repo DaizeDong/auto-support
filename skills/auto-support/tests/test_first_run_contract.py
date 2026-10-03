@@ -7,6 +7,8 @@ import sys
 
 import pytest
 
+from conftest import hook_event
+
 import answer_pipeline as pipeline
 import grounding
 import retrieval
@@ -111,7 +113,7 @@ def test_draft_pipeline_uses_selected_product_and_confidence(tmp_path):
     "cat docs/usage.md\nwhoami", "echo $SECRET", "ls src", "cat -- /etc/passwd",
 ])
 def test_hook_rejects_shell_interpretation_and_unbounded_reads(command):
-    result = run_script(HOOK, input_text=json.dumps({"tool_name": "Bash", "tool_input": {"command": command}}))
+    result = run_script(HOOK, input_text=json.dumps(hook_event("Bash", {"command": command})))
     assert result.returncode == 2
 
 
@@ -153,7 +155,7 @@ def test_explicit_invalid_policy_stops_before_answering(tmp_path, policy_text):
 
 
 def test_hook_rejects_explicit_missing_policy(tmp_path):
-    event = json.dumps({"tool_name": "Read", "tool_input": {"file_path": "README.md"}})
+    event = json.dumps(hook_event("Read", {"file_path": "README.md"}))
     result = run_script(HOOK, input_text=event,
                         env={"AUTO_SUPPORT_POLICY": str(tmp_path / "missing.json")})
     assert result.returncode == 2

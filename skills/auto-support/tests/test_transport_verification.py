@@ -1,63 +1,52 @@
-"""Consumer routing checks with generated transport responses and no network access."""
-import importlib.util
+"""Native selected-kit transport integration with generated local Git/profile state."""
 import os
 from pathlib import Path
 
 import pytest
 
 import runtime_data as D
-
-spec = importlib.util.spec_from_file_location(
-    "transport_fixtures", Path(__file__).resolve().parents[3] / "tools/make_fixtures.py")
-fixtures = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(fixtures)
+from conftest import actual_private_proof
+from test_review_acceptance_a import fixtures
 
 
-@pytest.mark.parametrize("kind", fixtures.companion_transport_kinds())
+@pytest.mark.parametrize("kind", ["https", "ssh-unproved-alias",
+                                  "ssh-mapped-host", "ssh-proxy"])
 @pytest.mark.parametrize("purpose", ["escalation", "database"])
-def test_transport_must_be_proved_before_runtime_path_is_admitted(tmp_path, monkeypatch, kind, purpose):
-    case = fixtures.companion_transport_case(tmp_path, kind)
+def test_selected_public_api_proves_transport_before_live_visibility(tmp_path, monkeypatch, kind, purpose):
+    actual_private_proof(monkeypatch, tmp_path)
+    case = fixtures.public_transport_case(tmp_path, kind)
     for name in tuple(os.environ):
         if name.startswith(("GIT_", "AUTO_SUPPORT_")):
             monkeypatch.delenv(name)
-    for name, value in case["environment"].items():
-        monkeypatch.setenv(name, value)
-    companion = case["companion"]
-    monkeypatch.setattr(D, "REPO_ROOT", case["tool"])
-    monkeypatch.setattr(D, "_guard_base", lambda: companion)
-    commands = []
+    monkeypatch.setenv("HOME", str(case["profile"]))
+    monkeypatch.setenv("USERPROFILE", str(case["profile"]))
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(case["empty_config"]))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setattr(D, "_guard_base", lambda: case["companion"])
+    queries = []
 
-    def command(argv, **kwargs):
-        commands.append(tuple(argv))
-        if argv[0] == "git":
-            if "rev-parse" in argv:
-                return str(companion)
-            if argv[3:] == ["remote"]:
-                return "origin"
-            if "--get-regexp" in argv:
-                return ""
-            if argv[3:] == ["config", "--null", "--list"]:
-                return case["configuration"]
-            if argv[3:5] == ["remote", "get-url"]:
-                return case["remote"]
-        if argv[0] == "gh":
-            return "true"
-        pytest.fail("Unproved transport command was requested: " + argv[0])
+    def query(argv, **kwargs):
+        assert argv == ["gh", "api", "--hostname", "github.com",
+                        "repos/example-owner/example-config", "--jq", ".private"]
+        queries.append(argv)
+        return "true"
 
-    monkeypatch.setattr(D, "_run", command)
-    target = companion / ("state.json" if purpose == "escalation" else "support.db")
-
-    def resolve():
-        if purpose == "escalation":
-            return D.state_path(target.name)
-        return D.private_file_path(target, sidecars=("-wal", "-shm", "-journal"))
-
+    monkeypatch.setattr(D, "_run", query)
+    target = case["companion"] / ("state.json" if purpose == "escalation" else "support.db")
+    invoke = (lambda: D.state_path(target.name)) if purpose == "escalation" else (
+        lambda: D.private_file_path(target, sidecars=("-wal", "-shm", "-journal")))
     if case["allowed"]:
-        assert resolve() == target
-        assert any(argv[0] == "gh" for argv in commands)
+        assert invoke() == target
+        assert queries
     else:
         with pytest.raises(D.DataBoundaryError):
-            resolve()
-        assert not any(argv[0] == "gh" for argv in commands)
-    assert list(companion.iterdir()) == []
-    assert not any(argv[0] == "ssh" for argv in commands)
+            invoke()
+        assert not queries
+    assert not target.exists()
+
+
+def test_missing_public_proof_dependency_blocks_before_visibility(tmp_path, monkeypatch):
+    monkeypatch.setattr(D, "REPO_ROOT", tmp_path / "uninitialized-tool")
+    monkeypatch.setattr(D, "_run", lambda *_args, **_kwargs: pytest.fail("query before proof"))
+    with pytest.raises(D.DataBoundaryError, match="guards kit"):
+        D.private_file_path(tmp_path / "support.db")

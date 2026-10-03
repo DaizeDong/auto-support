@@ -5,12 +5,14 @@ import subprocess
 import pytest
 
 import runtime_data as D
+from conftest import actual_private_proof
 from test_review_acceptance_a import fixtures
 
 
 @pytest.fixture
 def companion(tmp_path, monkeypatch, request):
     kind = request.param
+    actual_private_proof(monkeypatch, tmp_path)
     root = fixtures.companion_repository_case(tmp_path / "companion", kind)
     empty = tmp_path / "empty.gitconfig"
     empty.write_text("", encoding="ascii")

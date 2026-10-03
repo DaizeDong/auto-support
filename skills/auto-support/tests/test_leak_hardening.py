@@ -57,11 +57,11 @@ def _hook(payload_str):
 
 
 def test_hook_denies_unknown_read_tool():
-    assert _hook(json.dumps({"tool_name": "ReadFile", "tool_input": {"file_path": ".env"}})) == 2
+    assert _hook(json.dumps(fixtures.hook_event("ReadFile", {"file_path": ".env"}))) == 2
 
 
 def test_hook_denies_unknown_shell_tool():
-    assert _hook(json.dumps({"tool_name": "Shell", "tool_input": {"command": "cat .env"}})) == 2
+    assert _hook(json.dumps(fixtures.hook_event("Shell", {"command": "cat .env"}))) == 2
 
 
 def test_hook_denies_empty_payload():
@@ -69,5 +69,5 @@ def test_hook_denies_empty_payload():
 
 
 def test_hook_still_allows_legit_read_and_todo():
-    assert _hook(json.dumps({"tool_name": "Read", "tool_input": {"file_path": "README.md"}})) == 0
-    assert _hook(json.dumps({"tool_name": "TodoWrite", "tool_input": {}})) == 0
+    assert _hook(json.dumps(fixtures.hook_event("Read", {"file_path": "README.md"}))) == 0
+    assert _hook(json.dumps(fixtures.hook_event("TodoWrite", {}))) == 0

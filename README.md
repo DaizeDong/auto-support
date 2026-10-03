@@ -120,6 +120,16 @@ product. Full contract + field table: **[CONFIG.md](CONFIG.md)** (deep layout in
 - **Switch configs (hot-swap):** repoint the env var at another config dir, configs are
   self-contained (`product_root` is a placeholder, no baked-in paths):
   Repoint `AUTO_SUPPORT_CONFIG` for the doctor and `AUTO_SUPPORT_POLICY` for the draft CLI/hook.
+
+  Runtime persistence uses the selected Guards kit's public companion-proof API for all
+  effective fetch and push routes, including supported SSH aliases. The kit requires a
+  current PRIVATE visibility receipt; missing or stale receipts must be refreshed through
+  the normal visibility workflow. The adapter then queries every proven repository through
+  authenticated `gh` and repeats the shared proof. Changed publication state, failed live
+  visibility or an older kit without the public API blocks persistence.
+  The companion must have committed history. State, dispatch locks, atomic-write temporary
+  files and database sidecars must all be eligible for version control; ignored targets
+  and hard links are refused before dispatch.
 - **Secrets:** Mode B, `secrets/*` is gitignored and never enters git; `@secret:...` pointers in
   `policy.json` require a separately configured delivery adapter. Back up secrets out-of-band.
   Private runtime records are versioned in the companion, including escalation state.

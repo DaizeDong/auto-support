@@ -10,6 +10,7 @@ import egress_dlp as E
 import grounding as GR
 import reminder_bridge as RB
 import runtime_data as D
+from conftest import private_proof
 
 
 @pytest.fixture(autouse=True)
@@ -17,6 +18,7 @@ def private_receipt_fixture(tmp_path, monkeypatch):
     """Receipt tests use synthetic PRIVATE proof before their transport callbacks."""
     root = tmp_path / "synthetic-companion"
     root.mkdir()
+    private_proof(monkeypatch, root)
     monkeypatch.setenv("SCHEDULE_DB_PATH", str(root / "support.db"))
     def command(argv, **kwargs):
         if argv[0] == "gh":

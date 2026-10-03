@@ -1,6 +1,7 @@
 {
   "// NOTE": "Template for the PRODUCT ROOT's .claude/settings.json. No deployment helper is shipped; the product maintainer must install and verify it. permissions.deny + the PreToolUse hook are the enforcement layer — SKILL.md is not. Edit globs to match the product's secret_denylist. __HOOK_CMD__ is replaced with the absolute python invocation of pretooluse_hook.py.",
   "permissions": {
+    "defaultMode": "default",
     "deny": [
       "Read(./.env)", "Read(./.env.*)", "Read(**/.env)", "Read(**/.env.*)",
       "Read(./secrets/**)", "Read(./credentials/**)", "Read(./vault/**)",
@@ -11,14 +12,15 @@
       "Bash(rg:*)", "Bash(base64:*)", "Bash(xxd:*)", "Bash(strings:*)",
       "Bash(curl:*)", "Bash(wget:*)", "Bash(nc:*)", "Bash(ssh:*)", "Bash(scp:*)",
       "Write", "Edit", "MultiEdit", "NotebookEdit",
-      "WebFetch", "WebSearch",
-      "mcp__*"
+      "WebFetch", "WebSearch"
     ],
-    "// note_deny_mcp": "mcp__* is denied wholesale; re-allow ONLY the specific approved verbs below.",
+    "// note_mcp": "Select the actual exact relay tool name in ask and AUTO_SUPPORT_MCP_ALLOW. The hook blocks every other MCP tool; exit 0 still requires the normal host permission prompt. A matching deny in any effective settings cannot be overridden by ask, allow or the hook. Never add a wildcard MCP allow or bypass permissions.",
+    "ask": [
+      "mcp__discord__post_reply"
+    ],
     "allow": [
       "Read(./README*)", "Read(./docs/**)", "Read(./public-faq/**)", "Read(./CHANGELOG*)",
-      "Read(./examples/**)", "Read(**/*.example)",
-      "mcp__discord__post_reply"
+      "Read(./examples/**)", "Read(**/*.example)"
     ]
   },
   "hooks": {

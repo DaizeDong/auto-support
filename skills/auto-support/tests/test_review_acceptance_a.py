@@ -10,6 +10,7 @@ import pytest
 import answer_pipeline as AP
 import reminder_bridge as RB
 import runtime_data as D
+from conftest import private_proof
 from test_first_run_contract import run_script, SCRIPTS
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -40,6 +41,7 @@ def test_unusable_instruction_never_becomes_trusted_partial_answer(tmp_path, kin
 def test_reminder_rejects_unproven_database_before_invocation(tmp_path, monkeypatch, visibility):
     root = tmp_path / "companion"
     root.mkdir()
+    private_proof(monkeypatch, root)
     calls = []
 
     def command(argv, **kwargs):

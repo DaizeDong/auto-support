@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here (Keep a Changelog style).
 
+## [Unreleased]
+
+### Changed
+- Resolve public-document scope with exact source binding and installed `llmcall` interpretation for large prose sections; uncertain interpretation produces refusal.
+- Keep unchanged retrieved excerpts and matching citations as the shipped draft contract, including custom generators.
+- Require committed PRIVATE companion storage, current visibility evidence and version-control-eligible runtime targets before persistence or dispatch.
+- Preserve reconciliation state after uncertain sends; distinguish escalation requests from confirmed relay receipts and cooldown.
+- Require explicit scheduler database initialization before enabling turn persistence.
+- Replace the placeholder roadmap and align both README philosophy and storage guidance with these boundaries.
+
+### Fixed
+- Decode piped JSON as UTF-8 with optional BOM for Windows command-line input.
+
 ## [0.1.2] - 2026-07-06
 ### Security (leak-critical, from adversarial review that leaked end-to-end)
 - **egress DLP: ascii85 channel closed.** `_b85_views` matched only the RFC1924 alphabet, so an

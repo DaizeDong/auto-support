@@ -1,6 +1,6 @@
 # auto-support
 
-只用公开文档回答产品 Discord 用户的使用问题, fail-closed 护栏把机密/算法/PII 锁在里面；拿不准就升级给创始人。
+只用公开文档回答产品 Discord 用户的使用问题， fail-closed 护栏把机密/算法/PII 锁在里面；拿不准就升级给创始人。
 
 [![Claude Code Skill](https://img.shields.io/badge/Claude%20Code-Skill-orange?style=flat)](https://docs.anthropic.com/en/docs/claude-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -11,17 +11,21 @@
 
 ---
 
-## ⭐ 先读这里, 设计理念
+## 设计理念
 
-一个会读产品仓库的客服 bot，离泄露公司只有一个 prompt 的距离。所以统领原则很直白：**它的第一职责是
-把机密锁住，而不是答题。** 宁可漏答，不可泄露一次。关键在于：**写进 prompt 的护栏只是建议，模型每次都
-能无视**（AWS 实证：只口头禁止 → 3/3 泄露；加一个确定性 hook → 3/3 拦截）, 所以本 skill 的所有
-执行检查都放在模型之外：`permissions.deny` + fail-closed `PreToolUse` hook + 纯 stdlib 检测 + 出口 DLP
-闸。使用私有产品资料前，仍需验证宿主的 hook 覆盖和沙箱；本地测试不能证明所有宿主都安全。
+产品客服需要给出有用的答案，同时限制对私有实现资料的访问。因此，选定的公开文档构成知识
+边界，检索和宿主 hook 在模型之外核对路径，草稿还必须保留匹配的原文与引用。单靠 prompt 中
+的一句禁止访问，无法执行这条边界。
 
-📜 **[完整设计理念 -> PHILOSOPHY.md](PHILOSOPHY.md)**
+这套设计会缩小可回答的问题范围：自由生成器可能继续作答的问题，自带 CLI 可能拒绝。
+文档范围无法确定时也会拒答。长篇散文章节使用 `llmcall` 解释范围，这种判断仍可能出错；
+精确的原文范围只能证明来源，不能证明解释正确。改写答案需要另行验证的集成。
 
----
+草稿、升级请求和消息投递分别报告结果。中性拒答可以请求升级，只有确认的 relay 回执才表示
+发送成功。私有持久化状态用于防止把一次结果不明的发送自动重发。宿主 hook 的覆盖范围和
+真实投递仍需部署验证；插件本身不安装操作系统沙箱。
+
+[完整设计理念](PHILOSOPHY.md)。
 
 ## 它是什么(不是什么)
 
@@ -31,7 +35,7 @@ Discord 用户的使用问题，带确定性防泄密护栏、拿不准即升级
 **不是：** 通用聊天机器人、代码讲解器，或任何为了「帮忙」去读源码/机密的东西。allowlist 之外的问题一律
 拒答 + 升级，绝不凭记忆作答。
 
-## 工作原理, 纵深四闸（fail-closed）
+## 工作原理， 纵深四闸（fail-closed）
 
 ```
 Discord 消息 ─▶ 入口(注入+意图, spotlight) ─▶ 检索(只在 allowlist, 片段先扫密)
@@ -54,7 +58,7 @@ Discord 消息 ─▶ 入口(注入+意图, spotlight) ─▶ 检索(只在 allo
 /plugin install github:DaizeDong/auto-support
 ```
 
-或手动克隆:
+或手动克隆：
 
 ```bash
 git clone --recurse-submodules https://github.com/DaizeDong/auto-support.git ~/.claude/plugins/auto-support
@@ -98,16 +102,22 @@ python "$AUTO_SUPPORT_REMINDER_PY" --db "$SCHEDULE_DB_PATH" init
 - **挂载(发现顺序):** `$AUTO_SUPPORT_CONFIG` → `$AUTO_SUPPORT_CONFIG_DIR` →
   `~/.auto-support-config/` → `~/.config/auto-support-config/`，这是 doctor 的发现顺序。显式指定的路径
   不存在时会失败。doctor 可以选择唯一产品；草稿 CLI 和 hook 使用 `$AUTO_SUPPORT_POLICY`，CLI 也接受 `--policy`。
-- **首次配置:**
+- **首次配置：**
   ```bash
   # 在仓库根目录运行。
   python scripts/init_config.py --slug example
   export AUTO_SUPPORT_CONFIG=~/.auto-support-config
   python scripts/verify_config.py                  # 先填写 product.json，才能得到 DRAFT READY
   ```
-- **切换 config(即插即用):** 把环境变量指向另一个 config 目录即可, config 自包含(`product_root`
+- **切换 config(即插即用):** 把环境变量指向另一个 config 目录即可， config 自包含(`product_root`
   为占位符)：doctor 使用 `AUTO_SUPPORT_CONFIG`，草稿 CLI 和 hook 使用 `AUTO_SUPPORT_POLICY`，切换时都要更新。
-- **密钥:** Mode B, `secrets/*` 已 gitignore,永不入库；`policy.json` 里的 `@secret:...` 指针由
+运行记录通过所选 Guards kit 的公开伴生仓证明接口验证所有有效 fetch/push 路由，包括受支持的
+SSH 别名。kit 需要未过期的 PRIVATE 可见性回执；缺失或过期时，先通过正常可见性流程刷新。
+适配器随后使用已认证的 `gh` 查询已证明的仓库，并重复共享证明。公开状态变化、实时查询失败，
+或旧 kit 缺少公开 API，都会阻止持久化。伴生仓须已有提交历史；状态、投递锁、原子写入临时文件
+和数据库旁文件都须允许纳入版本管理。被忽略的目标和硬链接会在发送前被拒绝。
+
+- **密钥：** Mode B, `secrets/*` 已 gitignore,永不入库；`policy.json` 里的 `@secret:...` 指针由
   独立配置的投递适配器解析。密钥用库外备份；运行记录和升级状态保存在私有伴生仓并纳入版本管理。
 
 ## 如何触发

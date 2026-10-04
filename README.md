@@ -11,19 +11,25 @@ Answer your product's Discord users from public docs only, fail-closed guards ke
 
 ---
 
-## ⭐ Read this first, the design philosophy
+## Design Philosophy
 
-A support bot that reads your product's repo is one prompt away from leaking your company. So the
-governing principle is blunt: **its first job is to keep secrets in, not to answer.** Better to
-miss an answer than to leak once. Crucially, a guard *written into a prompt* is a suggestion the
-model can ignore (AWS baseline: told-not-to leaked 3/3; one deterministic hook -> blocked 3/3),
-so enforcement is placed **outside** the model: `permissions.deny` + a fail-closed
-`PreToolUse` hook + stdlib detection + an egress DLP gate. Verify the deployed host's hook
-coverage and sandbox before using private product material; local tests do not prove every host boundary.
+Product support needs a useful answer without expanding access to private implementation material.
+The selected public documentation is therefore an allowlisted knowledge boundary. Retrieval and
+the host hook check paths outside the model, and the draft must retain matching source excerpts
+and citations. A prompt instruction alone cannot enforce that boundary.
 
-📜 **[Read the full design philosophy -> PHILOSOPHY.md](PHILOSOPHY.md)**
+This design accepts a narrower answer set: the shipped CLI can refuse a question that a free-form
+generator would try to answer. It also refuses when document scope cannot be established. The
+`llmcall` interpretation used for large prose sections remains fallible, so exact source ranges
+prove provenance without proving the interpretation correct. Unsupported paraphrasing needs a
+separately validated integration.
 
----
+Drafting, escalation and delivery are separate outcomes. A neutral refusal can request escalation,
+but only a confirmed relay receipt establishes a send. Private durable state prevents an uncertain
+send from becoming an automatic duplicate. Host hook coverage and live delivery still require
+deployment checks; the plugin does not install an operating-system sandbox.
+
+[Read the full design philosophy](PHILOSOPHY.md).
 
 ## What it is (and isn't)
 

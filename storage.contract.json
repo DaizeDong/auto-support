@@ -1,0 +1,243 @@
+{
+  "schema_version": 1,
+  "tool": "auto-support",
+  "artifacts": [
+    {
+      "artifact_id": "readme",
+      "path_pattern": "README.md",
+      "purpose": "Companion setup metadata linking to the source contract.",
+      "schema": "DATA.md and the source initializer, when present.",
+      "producer": "Companion maintainer or source initializer.",
+      "consumer_or_final_deliverable": "Companion discovery and restore instructions.",
+      "rebuild_or_restore": "Recreate from current source documentation.",
+      "retention_rule": {
+        "class": "rebuildable",
+        "rule": "Keep only the minimal current setup instructions and exclusions; replace obsolete copies."
+      }
+    },
+    {
+      "artifact_id": "exclusions",
+      "path_pattern": ".gitignore",
+      "purpose": "Companion setup metadata linking to the source contract.",
+      "schema": "DATA.md and the source initializer, when present.",
+      "producer": "Companion maintainer or source initializer.",
+      "consumer_or_final_deliverable": "Companion discovery and restore instructions.",
+      "rebuild_or_restore": "Recreate from current source documentation.",
+      "retention_rule": {
+        "class": "rebuildable",
+        "rule": "Keep only the minimal current setup instructions and exclusions; replace obsolete copies."
+      }
+    },
+    {
+      "artifact_id": "registry",
+      "path_pattern": "registry.json",
+      "purpose": "Select isolated configured products.",
+      "schema": "CONFIG.md; scripts/init_config.py registry schema_version 1.",
+      "producer": "scripts/init_config.py and companion maintainer.",
+      "consumer_or_final_deliverable": "scripts/verify_config.py product selection.",
+      "rebuild_or_restore": "Restore with the matching private product policies.",
+      "retention_rule": {
+        "class": "core",
+        "rule": "Keep while any configured product is in use or needs restoration."
+      }
+    },
+    {
+      "artifact_id": "product",
+      "path_pattern": "products/*/product.json",
+      "purpose": "Bind one product policy to its documentation root.",
+      "schema": "CONFIG.md; skills/auto-support/scripts/policy.py.",
+      "producer": "scripts/init_config.py and companion maintainer.",
+      "consumer_or_final_deliverable": "Policy loading and draft readiness checks.",
+      "rebuild_or_restore": "Restore the private configuration and update its machine path deliberately.",
+      "retention_rule": {
+        "class": "core",
+        "rule": "Keep each current product profile with its policy; remove retired profiles after all delivery and restore dependencies end."
+      }
+    },
+    {
+      "artifact_id": "policy",
+      "path_pattern": "products/*/policy.json",
+      "purpose": "Authoritative allow, deny, confidence and integration configuration.",
+      "schema": "skills/auto-support/scripts/policy.py: validate_policy and load_policy.",
+      "producer": "scripts/init_config.py and companion maintainer.",
+      "consumer_or_final_deliverable": "Draft CLI, read hook and separately provisioned delivery integration.",
+      "rebuild_or_restore": "Restore the selected version from private history.",
+      "retention_rule": {
+        "class": "core",
+        "rule": "Keep the effective policy and references required by an active product or its recovery."
+      }
+    },
+    {
+      "artifact_id": "escalation_state",
+      "path_pattern": "data/escalation_state.json",
+      "purpose": "Deduplication fingerprints with last_sent and severity.",
+      "schema": "skills/auto-support/scripts/escalate.py: _load_state and _save_state.",
+      "producer": "skills/auto-support/scripts/escalate.py.",
+      "consumer_or_final_deliverable": "The next escalation admission and delivery reconciliation.",
+      "rebuild_or_restore": "Restore the last confirmed state; do not clear it to retry an uncertain delivery.",
+      "retention_rule": {
+        "class": "core",
+        "rule": "Keep while dispatch or reconciliation can refer to the state. Retire only after dispatch stops and outstanding delivery outcomes are resolved."
+      }
+    },
+    {
+      "artifact_id": "state_lock",
+      "path_pattern": "data/escalation_state.json.lock",
+      "purpose": "Exclusive escalation writer and interrupted dispatch marker.",
+      "schema": "skills/auto-support/scripts/escalate.py: _state_lock.",
+      "producer": "skills/auto-support/scripts/escalate.py.",
+      "consumer_or_final_deliverable": "Concurrent dispatch protection and operator reconciliation.",
+      "rebuild_or_restore": "Resolve the prior delivery outcome before removing a stale lock.",
+      "retention_rule": {
+        "class": "core",
+        "rule": "Keep until its writer has stopped and delivery/commit status is known."
+      }
+    },
+    {
+      "artifact_id": "state_staging",
+      "path_pattern": "data/escalation_state.json.tmp",
+      "purpose": "Atomic replacement staging for escalation state.",
+      "schema": "skills/auto-support/scripts/escalate.py: _save_state.",
+      "producer": "skills/auto-support/scripts/escalate.py.",
+      "consumer_or_final_deliverable": "The active state commit.",
+      "rebuild_or_restore": "Rebuild from reconciled state after confirming the previous commit boundary.",
+      "retention_rule": {
+        "class": "rebuildable",
+        "rule": "Remove after normal replacement or a reviewed inactive recovery; never remove an active writer's file."
+      }
+    },
+    {
+      "artifact_id": "credential_env",
+      "path_pattern": "secrets/*.env",
+      "purpose": "Credentials explicitly provisioned for a delivery integration.",
+      "schema": "CONFIG.md secret references; the selected provider credential format.",
+      "producer": "Authorized credential provisioning.",
+      "consumer_or_final_deliverable": "The separately configured delivery integration.",
+      "rebuild_or_restore": "Restore through the approved private credential backup or reauthorize.",
+      "retention_rule": {
+        "class": "core",
+        "rule": "Keep current credentials while their integration or recovery requires them; retire replaced credentials after rotation is confirmed."
+      }
+    },
+    {
+      "artifact_id": "credential_dpapi",
+      "path_pattern": "secrets/*.cred",
+      "purpose": "Machine-bound credentials for an explicitly configured integration.",
+      "schema": "Windows DPAPI credential encoding; CONFIG.md.",
+      "producer": "Authorized local credential provisioning.",
+      "consumer_or_final_deliverable": "The configured local credential resolver.",
+      "rebuild_or_restore": "Restore on the bound machine or reauthorize on a new machine.",
+      "retention_rule": {
+        "class": "core",
+        "rule": "Keep only credentials needed by an active integration or its approved recovery."
+      }
+    },
+    {
+      "artifact_id": "inventory",
+      "path_pattern": "products/*/confidential-inventory.md",
+      "purpose": "Private asset inventory used to review the effective deny policy.",
+      "schema": "skills/auto-support/reference/config-schema.md.",
+      "producer": "Companion maintainer.",
+      "consumer_or_final_deliverable": "Policy review for the matching product.",
+      "rebuild_or_restore": "Restore its selected private version.",
+      "retention_rule": {
+        "class": "core",
+        "rule": "Keep only an actually maintained inventory used to review a current product; empty templates are not runtime evidence."
+      }
+    },
+    {
+      "artifact_id": "generated_reference_0",
+      "path_pattern": "products/*/allowlist.txt",
+      "purpose": "Companion setup metadata linking to the source contract.",
+      "schema": "DATA.md and the source initializer, when present.",
+      "producer": "Companion maintainer or source initializer.",
+      "consumer_or_final_deliverable": "Companion discovery and restore instructions.",
+      "rebuild_or_restore": "Recreate from current source documentation.",
+      "retention_rule": {
+        "class": "rebuildable",
+        "rule": "Keep only the minimal current setup instructions and exclusions; replace obsolete copies."
+      }
+    },
+    {
+      "artifact_id": "generated_reference_1",
+      "path_pattern": "products/*/denylist.txt",
+      "purpose": "Companion setup metadata linking to the source contract.",
+      "schema": "DATA.md and the source initializer, when present.",
+      "producer": "Companion maintainer or source initializer.",
+      "consumer_or_final_deliverable": "Companion discovery and restore instructions.",
+      "rebuild_or_restore": "Recreate from current source documentation.",
+      "retention_rule": {
+        "class": "rebuildable",
+        "rule": "Keep only the minimal current setup instructions and exclusions; replace obsolete copies."
+      }
+    },
+    {
+      "artifact_id": "generated_reference_2",
+      "path_pattern": "products/*/confidential-inventory.md.template",
+      "purpose": "Companion setup metadata linking to the source contract.",
+      "schema": "DATA.md and the source initializer, when present.",
+      "producer": "Companion maintainer or source initializer.",
+      "consumer_or_final_deliverable": "Companion discovery and restore instructions.",
+      "rebuild_or_restore": "Recreate from current source documentation.",
+      "retention_rule": {
+        "class": "rebuildable",
+        "rule": "Keep only the minimal current setup instructions and exclusions; replace obsolete copies."
+      }
+    },
+    {
+      "artifact_id": "generated_reference_3",
+      "path_pattern": "metrics/SCHEMA.md",
+      "purpose": "Companion setup metadata linking to the source contract.",
+      "schema": "DATA.md and the source initializer, when present.",
+      "producer": "Companion maintainer or source initializer.",
+      "consumer_or_final_deliverable": "Companion discovery and restore instructions.",
+      "rebuild_or_restore": "Recreate from current source documentation.",
+      "retention_rule": {
+        "class": "rebuildable",
+        "rule": "Keep only the minimal current setup instructions and exclusions; replace obsolete copies."
+      }
+    },
+    {
+      "artifact_id": "generated_reference_4",
+      "path_pattern": "secrets/README.md",
+      "purpose": "Companion setup metadata linking to the source contract.",
+      "schema": "DATA.md and the source initializer, when present.",
+      "producer": "Companion maintainer or source initializer.",
+      "consumer_or_final_deliverable": "Companion discovery and restore instructions.",
+      "rebuild_or_restore": "Recreate from current source documentation.",
+      "retention_rule": {
+        "class": "rebuildable",
+        "rule": "Keep only the minimal current setup instructions and exclusions; replace obsolete copies."
+      }
+    },
+    {
+      "artifact_id": "generated_reference_5",
+      "path_pattern": "secrets/.gitkeep",
+      "purpose": "Companion setup metadata linking to the source contract.",
+      "schema": "DATA.md and the source initializer, when present.",
+      "producer": "Companion maintainer or source initializer.",
+      "consumer_or_final_deliverable": "Companion discovery and restore instructions.",
+      "rebuild_or_restore": "Recreate from current source documentation.",
+      "retention_rule": {
+        "class": "rebuildable",
+        "rule": "Keep only the minimal current setup instructions and exclusions; replace obsolete copies."
+      }
+    },
+    {
+      "artifact_id": "generated_reference_6",
+      "path_pattern": "secrets/*.env.template",
+      "purpose": "Companion setup metadata linking to the source contract.",
+      "schema": "DATA.md and the source initializer, when present.",
+      "producer": "Companion maintainer or source initializer.",
+      "consumer_or_final_deliverable": "Companion discovery and restore instructions.",
+      "rebuild_or_restore": "Recreate from current source documentation.",
+      "retention_rule": {
+        "class": "rebuildable",
+        "rule": "Keep only the minimal current setup instructions and exclusions; replace obsolete copies."
+      }
+    }
+  ],
+  "protected_paths": [
+    "data/escalation_state.json.lock"
+  ]
+}

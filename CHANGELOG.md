@@ -5,6 +5,7 @@ All notable changes to this project are documented here (Keep a Changelog style)
 ## [Unreleased]
 
 ### Changed
+- Declare the exact companion license copy while keeping legacy operator and incident-path obligations under separate review.
 - Resolve public-document scope with exact source binding and installed `llmcall` interpretation for large prose sections; uncertain interpretation produces refusal.
 - Keep unchanged retrieved excerpts and matching citations as the shipped draft contract, including custom generators.
 - Require committed PRIVATE companion storage, current visibility evidence and version-control-eligible runtime targets before persistence or dispatch.

@@ -20,7 +20,13 @@ Credential references stay in policy; credential bytes remain in the approved
 private credential store or backup. A saved reference does not provision a
 delivery integration. The draft CLI and doctor require no delivery credentials.
 Use the current source doctor, `scripts/verify_config.py`, for draft readiness;
-old companion installation scripts are not part of this storage contract.
+old companion installation scripts remain outside this storage contract.
+The exact companion `LICENSE` copy is a rebuildable reference.
+
+Legacy escalation configuration, installation helpers and incident procedures
+need their own consumer and restoration review. Unknown companion paths are not
+covered by this license declaration; a new incident writer needs an explicit
+reviewed path contract before it can be treated as covered.
 
 Keep only current configuration, needed state and selected evidence. Source
 documentation owns schemas and operating rules; the companion README links here.

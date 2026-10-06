@@ -235,6 +235,19 @@
         "class": "rebuildable",
         "rule": "Keep only the minimal current setup instructions and exclusions; replace obsolete copies."
       }
+    },
+    {
+      "artifact_id": "companion_license",
+      "path_pattern": "LICENSE",
+      "purpose": "License copy accompanying the private companion configuration.",
+      "schema": "The current source LICENSE.",
+      "producer": "Companion setup or maintainer.",
+      "consumer_or_final_deliverable": "Companion licensing and restoration reference.",
+      "rebuild_or_restore": "Recreate the copy from the current source LICENSE.",
+      "retention_rule": {
+        "class": "rebuildable",
+        "rule": "Keep the applicable license reference while the companion needs it; replace obsolete copies from source."
+      }
     }
   ],
   "protected_paths": [

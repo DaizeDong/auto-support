@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "tool": "auto-support",
+  "max_bytes": 67108864,
   "artifacts": [
     {
       "artifact_id": "readme",
@@ -248,9 +249,166 @@
         "class": "rebuildable",
         "rule": "Keep the applicable license reference while the companion needs it; replace obsolete copies from source."
       }
+    },
+    {
+      "artifact_id": "root_escalation_state",
+      "path_pattern": "escalation_state.json",
+      "purpose": "Delivery fingerprints and cooldown state when the runtime resolver selects the companion root.",
+      "schema": "skills/auto-support/scripts/runtime_data.py: state_path; skills/auto-support/scripts/escalate.py: _load_state and _save_state.",
+      "producer": "skills/auto-support/scripts/escalate.py.",
+      "consumer_or_final_deliverable": "Subsequent escalation admission and delivery reconciliation.",
+      "rebuild_or_restore": "Restore the last confirmed private state and reconcile uncertain delivery before retrying.",
+      "retention_rule": {
+        "class": "core",
+        "rule": "Keep while dispatch, cooldown or unresolved delivery outcomes depend on it. The root path applies when the selected companion has no data directory."
+      }
+    },
+    {
+      "artifact_id": "root_state_lock",
+      "path_pattern": "escalation_state.json.lock",
+      "purpose": "Exclusive dispatch and interrupted-delivery marker beside root escalation state.",
+      "schema": "skills/auto-support/scripts/escalate.py: _state_lock.",
+      "producer": "skills/auto-support/scripts/escalate.py.",
+      "consumer_or_final_deliverable": "Concurrent dispatch protection and operator reconciliation.",
+      "rebuild_or_restore": "Resolve the prior delivery outcome before clearing an inactive lock.",
+      "retention_rule": {
+        "class": "core",
+        "rule": "Keep until the writer has stopped and the delivery and state-commit outcomes are known."
+      }
+    },
+    {
+      "artifact_id": "root_state_staging",
+      "path_pattern": "escalation_state.json.tmp",
+      "purpose": "Atomic replacement staging beside root escalation state.",
+      "schema": "skills/auto-support/scripts/escalate.py: _save_state.",
+      "producer": "skills/auto-support/scripts/escalate.py.",
+      "consumer_or_final_deliverable": "The active escalation state commit.",
+      "rebuild_or_restore": "Rebuild from reconciled state after confirming the previous replacement boundary.",
+      "retention_rule": {
+        "class": "rebuildable",
+        "rule": "Remove only after normal replacement or a reviewed inactive recovery; never remove an active writer's staging file."
+      }
+    },
+    {
+      "artifact_id": "incident_recovery_procedure",
+      "path_pattern": "runbooks/incident-response.md",
+      "purpose": "Selected incident containment, review and recovery checklist.",
+      "schema": "Markdown recovery procedure; current source security, escalation and red-team references govern implementation checks.",
+      "producer": "Companion maintainer.",
+      "consumer_or_final_deliverable": "Operator incident review and recovery handoff.",
+      "rebuild_or_restore": "Restore the selected private version until a reviewed replacement covers its recovery duties.",
+      "retention_rule": {
+        "class": "core",
+        "rule": "Keep this exact procedure until a reviewed replacement exists and unresolved incident and delivery outcomes are closed. References to retired installation or rotation helpers do not establish that those helpers are valid."
+      }
+    },
+    {
+      "artifact_id": "legacy_escalation_config",
+      "path_pattern": "products/*/escalation.json",
+      "purpose": "Superseded separate escalation configuration for a product.",
+      "schema": "Legacy JSON escalation object; CONFIG.md and the current product policy define the replacement.",
+      "producer": "Earlier companion configuration setup.",
+      "consumer_or_final_deliverable": "Migration review against the matching policy.json; current source consumes the policy object.",
+      "rebuild_or_restore": "Restore effective escalation and approval settings from the matching private policy version.",
+      "retention_rule": {
+        "class": "retired",
+        "rule": "Retire after every setting is preserved in the matching policy and all external consumers have been checked. Current source has no reader for this separate file."
+      }
+    },
+    {
+      "artifact_id": "legacy_apply_helper",
+      "path_pattern": "scripts/apply.py",
+      "purpose": "Superseded deployment settings composer.",
+      "schema": "Legacy Python CLI; current policy root resolution and settings template are authoritative.",
+      "producer": "Earlier companion deployment setup.",
+      "consumer_or_final_deliverable": "Review of earlier deployment steps; current source initialization and doctor do not use this helper.",
+      "rebuild_or_restore": "Recover historical deployment evidence from private history; prepare a separately reviewed integration from current source requirements.",
+      "retention_rule": {
+        "class": "retired",
+        "rule": "This helper does not use the current product-root resolver and replaces permission lists. Retire only after external invocation and recovery references are checked."
+      }
+    },
+    {
+      "artifact_id": "legacy_capture_helper",
+      "path_pattern": "scripts/capture-key.ps1",
+      "purpose": "Earlier local credential capture helper for the superseded deployment procedure.",
+      "schema": "Legacy PowerShell DPAPI capture CLI; credential provisioning belongs to the selected integration.",
+      "producer": "Earlier companion deployment setup.",
+      "consumer_or_final_deliverable": "Review of old rotation and restoration steps; current source has no credential capture consumer.",
+      "rebuild_or_restore": "Use the approved private credential backup or reauthorize through a reviewed integration.",
+      "retention_rule": {
+        "class": "retired",
+        "rule": "Retire the helper after all external capture and recovery dependencies are checked. This classification does not retire credential files or their backups."
+      }
+    },
+    {
+      "artifact_id": "legacy_verify_helper",
+      "path_pattern": "scripts/verify.sh",
+      "purpose": "Superseded pointer and credential-presence inspection helper.",
+      "schema": "Legacy shell CLI; scripts/verify_config.py owns current draft configuration checks.",
+      "producer": "Earlier companion deployment setup.",
+      "consumer_or_final_deliverable": "Review of old deployment checks; current configuration uses the source doctor.",
+      "rebuild_or_restore": "Run the current source doctor for draft configuration and separately validate the selected delivery integration.",
+      "retention_rule": {
+        "class": "retired",
+        "rule": "Pointer and credential presence do not establish current readiness. Retire after external invocation and recovery references are checked."
+      }
+    },
+    {
+      "artifact_id": "legacy_machine_runbook",
+      "path_pattern": "runbooks/new-machine.md",
+      "purpose": "Superseded machine restoration steps for the earlier deployment helpers.",
+      "schema": "Legacy Markdown procedure; CONFIG.md defines current product-root setup and draft checks.",
+      "producer": "Earlier companion maintainer.",
+      "consumer_or_final_deliverable": "Review of historical restoration assumptions; current restoration uses product.json and the source doctor.",
+      "rebuild_or_restore": "Restore current private policies and credentials, then prepare reviewed machine setup from current source documentation.",
+      "retention_rule": {
+        "class": "retired",
+        "rule": "The procedure depends on retired capture and apply helpers and bypasses current product-root setup. Retire after remaining recovery references have a reviewed replacement."
+      }
+    },
+    {
+      "artifact_id": "legacy_rotation_runbook",
+      "path_pattern": "runbooks/secret-rotation.md",
+      "purpose": "Superseded credential rotation steps for the earlier deployment helpers.",
+      "schema": "Legacy Markdown procedure; the selected credential integration owns rotation and receipt checks.",
+      "producer": "Earlier companion maintainer.",
+      "consumer_or_final_deliverable": "Review of the prior rotation chain and its incident-recovery references.",
+      "rebuild_or_restore": "Use a reviewed rotation procedure for the current credential integration and confirm replacement credentials before retirement.",
+      "retention_rule": {
+        "class": "retired",
+        "rule": "The procedure depends on retired capture, apply and verify helpers. Keep pending removal until incident and external recovery references are replaced and rotation outcomes are resolved."
+      }
+    },
+    {
+      "artifact_id": "legacy_setup_changelog",
+      "path_pattern": "CHANGELOG.md",
+      "purpose": "Historical notes about the earlier companion deployment setup.",
+      "schema": "Legacy Markdown change notes; current CONFIG.md and DATA.md define supported setup and retention.",
+      "producer": "Earlier companion maintainer.",
+      "consumer_or_final_deliverable": "Review of superseded helper and exclusion assumptions.",
+      "rebuild_or_restore": "Recover historical setup notes from private history when a review requires them.",
+      "retention_rule": {
+        "class": "retired",
+        "rule": "These notes describe retired helpers and obsolete runtime exclusions. Retire the worktree copy after selected historical review and external references are checked."
+      }
+    },
+    {
+      "artifact_id": "legacy_setup_philosophy",
+      "path_pattern": "PHILOSOPHY.md",
+      "purpose": "Historical rationale for the earlier companion deployment setup.",
+      "schema": "Legacy Markdown rationale; current source security and configuration documentation govern setup.",
+      "producer": "Earlier companion maintainer.",
+      "consumer_or_final_deliverable": "Review of the superseded helper-based deployment assumptions.",
+      "rebuild_or_restore": "Recover historical rationale from private history when a review requires it.",
+      "retention_rule": {
+        "class": "retired",
+        "rule": "This rationale relies on the retired settings composer. Retire the worktree copy after historical review and external references are checked."
+      }
     }
   ],
   "protected_paths": [
-    "data/escalation_state.json.lock"
+    "data/escalation_state.json.lock",
+    "escalation_state.json.lock"
   ]
 }

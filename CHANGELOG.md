@@ -4,8 +4,13 @@ All notable changes to this project are documented here (Keep a Changelog style)
 
 ## [Unreleased]
 
+### Storage review threshold
+- Set a 64 MiB companion working-data review threshold. Required observations and
+  recovery state stay protected when the threshold is exceeded.
+
 ### Changed
-- Declare the exact companion license copy while keeping legacy operator and incident-path obligations under separate review.
+- Declare exact companion metadata and delivery coordination paths, and keep
+  legacy incident recovery obligations separate from current runtime state.
 - Resolve public-document scope with exact source binding and installed `llmcall` interpretation for large prose sections; uncertain interpretation produces refusal.
 - Keep unchanged retrieved excerpts and matching citations as the shipped draft contract, including custom generators.
 - Require committed PRIVATE companion storage, current visibility evidence and version-control-eligible runtime targets before persistence or dispatch.

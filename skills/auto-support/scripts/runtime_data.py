@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import stat
 import subprocess
+import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -33,10 +34,15 @@ def _run(argv, *, empty_ok=False):
     return result.stdout.strip()
 
 
-def _guard_base():
+def _guard_base(*, companion=False, override=None, required=True):
     path = REPO_ROOT / "guards/tools/datadir.py"
     if not path.is_file():
         raise DataBoundaryError("Missing guards kit; run git submodule update --init --recursive")
+    if override is not None:
+        selected = Path(override).expanduser()
+        if not str(override).strip() or not selected.is_dir():
+            raise DataBoundaryError("Explicit config directory must exist")
+        return selected.resolve() if companion else (selected / "data" if (selected / "data").is_dir() else selected).resolve()
     for name in ("AUTO_SUPPORT_DATA_DIR", "AUTO_SUPPORT_CONFIG", "AUTO_SUPPORT_CONFIG_DIR"):
         value = os.environ.get(name)
         if value:
@@ -47,9 +53,12 @@ def _guard_base():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     try:
-        result = module.resolve_data_dir("auto-support", create=False)
+        result = (module.resolve_companion_root("auto-support") if companion else
+                  module.resolve_data_dir("auto-support", create=False))
     except (OSError, ValueError, RuntimeError) as exc:
         raise DataBoundaryError("Cannot resolve the private companion; check AUTO_SUPPORT_CONFIG") from exc
+    if result is None and not required:
+        return None
     if result is None:
         raise DataBoundaryError("Set AUTO_SUPPORT_CONFIG to a PRIVATE versioned companion before recording escalations")
     return Path(result).resolve()
@@ -161,6 +170,24 @@ def private_file_path(value, *, sidecars=()):
     return target
 
 
+def _storage_api():
+    path = REPO_ROOT / 'guards/tools/storage_contract.py'
+    spec = importlib.util.spec_from_file_location('_auto_support_storage', path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _authorize_state(target, root):
+    try:
+        module = _storage_api()
+        for candidate in (target, Path(str(target) + '.lock'), Path(str(target) + '.tmp')):
+            module.authorize_artifact_write(REPO_ROOT, root, candidate.relative_to(root).as_posix())
+    except (OSError, ValueError, RuntimeError, AttributeError) as exc:
+        raise DataBoundaryError('Escalation output requires a source-owned versioned artifact declaration') from exc
+
+
 def state_path(value=None):
     base = _guard_base()
     if base.is_relative_to(REPO_ROOT):
@@ -180,4 +207,6 @@ def state_path(value=None):
     root = _private_repo(base)
     if _private_repo(target) != root:
         raise DataBoundaryError("State destination crosses a repository boundary")
-    return private_file_path(target, sidecars=(".lock", ".tmp"))
+    target = private_file_path(target, sidecars=(".lock", ".tmp"))
+    _authorize_state(target, root)
+    return target

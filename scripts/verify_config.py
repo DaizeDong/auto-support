@@ -4,15 +4,16 @@ the documented discovery order, selects one product's policy.json, validates it 
 schema, and prints PASS/FAIL per check naming exactly what is missing. Exit 0 = ready, 1 = not ready,
 2 = usage error.
 
-Discovery order (config-spec E2):
-  1. $AUTO_SUPPORT_CONFIG   2. $AUTO_SUPPORT_CONFIG_DIR   3. ~/.auto-support-config/
-  4. ~/.config/auto-support-config/
+Discovery is shared with runtime_data and pinned Guards: doctor --config-dir, then
+AUTO_SUPPORT_DATA_DIR, AUTO_SUPPORT_CONFIG, AUTO_SUPPORT_CONFIG_DIR, proven sibling,
+~/.auto-support-config and legacy ~/.auto-support-data. Invalid explicit selections fail.
+The initializer's --out is a separate deliberate creation destination.
 Product selection: $AUTO_SUPPORT_POLICY (path to products/<slug>/policy.json) wins; else the sole
 product under <config>/products/ when exactly one exists.
 
 Usage:
   python verify_config.py [--config-dir <dir>] [--policy <policy.json>] [--slug <name>]
-Stdlib only. Never echoes secret values (only presence). A real secret in a committed file is a FAIL.
+Stdlib only. This reports schema and local draft readiness; it does not scan committed secret values.
 """
 import argparse
 import json
@@ -31,17 +32,9 @@ REPLY_MODES = {"draft_human_review", "relay_only", "auto_post"}
 
 
 def discover_config(override):
-    if override:
-        return os.path.abspath(os.path.expanduser(override)), "explicit (--config-dir)"
-    for v in (ENV_VAR, ENV_VAR + "_DIR"):
-        val = os.environ.get(v)
-        if val:
-            return os.path.abspath(os.path.expanduser(val)), "env:%s" % v
-    for d in (os.path.expanduser("~/.auto-support-config"),
-              os.path.expanduser("~/.config/auto-support-config")):
-        if os.path.isdir(d):
-            return d, "default:%s" % d
-    return None, None
+    import runtime_data
+    root = runtime_data._guard_base(companion=True, override=override, required=False)
+    return (str(root), 'shared companion resolver') if root else (None, None)
 
 
 def resolve_policy(cfg, slug, explicit):
@@ -73,14 +66,19 @@ def main():
     if a.slug and not P.valid_slug(a.slug):
         ap.error("--slug must be a kebab-case product slug")
 
-    cfg, how = discover_config(a.config_dir)
+    try:
+        cfg, how = discover_config(a.config_dir)
+    except RuntimeError as exc:
+        print("NOT READY: " + str(exc))
+        return 1
     print("Config doctor for skill 'auto-support'")
-    print("Discovery env var: %s (and %s_DIR), fallback ~/.auto-support-config" % (ENV_VAR, ENV_VAR))
+    print("Discovery: shared runtime companion resolver; see CONFIG.md")
     if not cfg and not (a.policy or os.environ.get("AUTO_SUPPORT_POLICY")):
         print("  [%s] config located -> none found." % FAIL)
         print("       Set %s=<dir> or run: python scripts/init_config.py" % ENV_VAR)
         return 1
     if cfg:
+        print("RESOLVED: " + cfg)
         print("  config dir via %s -> %s" % (how, cfg))
 
     policy, phow = resolve_policy(cfg, a.slug, a.policy)
@@ -90,6 +88,9 @@ def main():
         return 1
     if not cfg:
         cfg = str(Path(policy).resolve().parents[2])
+    if not Path(policy).resolve().is_relative_to(Path(cfg).resolve() / "products"):
+        print("NOT READY: selected policy must belong to the resolved companion products directory")
+        return 1
     print("  policy via %s -> %s" % (phow, policy))
     print("-" * 64)
 
@@ -216,7 +217,7 @@ def main():
     if n_fail:
         print("NOT READY: %d check(s) failed. Fix the above (or re-run init_config.py)." % n_fail)
         return 1
-    print("DRAFT READY: policy and public-docs root validated. Discord delivery and live retrieval remain unverified.")
+    print("READY: DRAFT READY: policy and public-docs root validated. Discord delivery and live retrieval remain unverified.")
     return 0
 
 

@@ -308,7 +308,7 @@
       "purpose": "Superseded separate escalation configuration for a product.",
       "schema": "Legacy JSON escalation object; CONFIG.md and the current product policy define the replacement.",
       "producer": "Earlier companion configuration setup.",
-      "consumer_or_final_deliverable": "Migration review against the matching policy.json; current source consumes the policy object.",
+      "consumer_or_final_deliverable": "Migration review against matching policy.json and separately configured dispatcher arguments; the shipped dispatcher does not load policy escalation settings.",
       "rebuild_or_restore": "Restore effective escalation and approval settings from the matching private policy version.",
       "retention_rule": {
         "class": "retired",
@@ -404,6 +404,19 @@
       "retention_rule": {
         "class": "retired",
         "rule": "This rationale relies on the retired settings composer. Retire the worktree copy after historical review and external references are checked."
+      }
+    },
+    {
+      "artifact_id": "incident-records",
+      "path_pattern": "metrics/*/incidents.jsonl",
+      "purpose": "Operator incident timeline and unresolved containment/recovery decisions.",
+      "schema": "DATA.md incident record schema v1: schema_version, incident_id, ts, product_slug, status, summary, recovery_dependencies.",
+      "producer": "Authorized operator following the retained incident-response runbook; no automatic incident writer is shipped.",
+      "consumer_or_final_deliverable": "Incident review, delivery reconciliation and recovery handoff.",
+      "rebuild_or_restore": "Restore exact private incident records together with referenced state and evidence before resuming affected dispatch.",
+      "retention_rule": {
+        "class": "core",
+        "rule": "Keep while incidents, delivery outcomes or recorded recovery dependencies remain unresolved; retire only after explicit reviewed closure."
       }
     }
   ],

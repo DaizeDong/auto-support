@@ -15,6 +15,9 @@ main-branch behavior; older release entries retain their historical meaning.
 - Prove PRIVATE versioned storage before persistence and keep the scheduler bridge behind its
   explicit database-initialization requirement.
 
+Current main shares doctor/runtime companion discovery, validates declared escalation outputs
+and retains operator incident records under an explicit recovery contract.
+
 ## Deployment acceptance still required
 
 - Validate host permissions and hook coverage for the actual client. The plugin does not install

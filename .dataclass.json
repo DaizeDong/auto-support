@@ -5,11 +5,12 @@
     "DATA = real observations and runtime output, versioned only in a verified PRIVATE companion.",
     "The public tool has no runtime data fallback. Guards enforce classification and fixture reproducibility."
   ],
-  "_audited": "Shipped escalation code records incident hashes and delivery timestamps. runtime_data.py resolves through the pinned guard, rejects destinations inside this tool, requires live PRIVATE visibility for every configured remote's effective fetch and push URLs including Git rewrites, requires default and branch push selections to name verified remotes, and checks path containment before dispatch. Dry runs produce no state; successful deliveries record cooldown state. Runtime data is versioned in the private companion. The reminder bridge uses only the schedule-reminder CLI and verifies each selected absolute database and SQLite sidecar destination in the same PRIVATE repository before invocation; unknown visibility, nested repository escapes and hard links fail before writes.",
+  "_audited": "Shipped escalation code records incident hashes and delivery timestamps. runtime_data.py resolves through the pinned guard, rejects destinations inside this tool, requires live PRIVATE visibility for every configured remote's effective fetch and push URLs including Git rewrites, requires default and branch push selections to name verified remotes, and checks path containment before dispatch. Dry runs produce no state; successful deliveries record cooldown state. Runtime data is versioned in the private companion. The reminder bridge uses only the schedule-reminder CLI and verifies each selected absolute database and SQLite sidecar destination in the same PRIVATE repository before invocation; unknown visibility, nested repository escapes and hard links fail before writes. Operator-maintained per-product incident ledgers are core companion DATA under metrics; the public worktree must not contain that runtime namespace.",
   "data": [
     "escalation_state.json",
     "escalation_state.json.lock",
-    "escalation_state.json.tmp"
+    "escalation_state.json.tmp",
+    "metrics/"
   ],
   "data_sealed": [],
   "fixture": [
@@ -22,7 +23,8 @@
     "skills/auto-support/tests/fixtures/mock-project/internal/system.txt",
     "skills/auto-support/tests/fixtures/mock-project/public-faq/faq.md",
     "skills/auto-support/tests/fixtures/mock-project/secrets/customers.csv",
-    "skills/auto-support/tests/fixtures/mock-project/src/ranking.py"
+    "skills/auto-support/tests/fixtures/mock-project/src/ranking.py",
+    "skills/auto-support/tests/test_fleet_storage_contract.py"
   ],
   "_data_home": "AUTO_SUPPORT_CONFIG or AUTO_SUPPORT_DATA_DIR points to the PRIVATE versioned companion. There is no public or unversioned runtime fallback."
 }

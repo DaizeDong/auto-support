@@ -99,8 +99,8 @@ python "$AUTO_SUPPORT_REMINDER_PY" --db "$SCHEDULE_DB_PATH" init
 （`auto-support-config`，Mode B），每个产品一份隔离的 `policy.json`。完整规范+字段表见
 **[CONFIG.md](CONFIG.md)**（深层布局见 `skills/auto-support/reference/config-schema.md`）。
 
-- **挂载(发现顺序):** `$AUTO_SUPPORT_CONFIG` → `$AUTO_SUPPORT_CONFIG_DIR` →
-  `~/.auto-support-config/` → `~/.config/auto-support-config/`，这是 doctor 的发现顺序。显式指定的路径
+- **挂载(发现顺序):** `$AUTO_SUPPORT_DATA_DIR` → `$AUTO_SUPPORT_CONFIG` → `$AUTO_SUPPORT_CONFIG_DIR` →
+  已证明的同级伴生仓 → `~/.auto-support-config/` → `~/.auto-support-data/`，这是 doctor 的发现顺序。显式指定的路径
   不存在时会失败。doctor 可以选择唯一产品；草稿 CLI 和 hook 使用 `$AUTO_SUPPORT_POLICY`，CLI 也接受 `--policy`。
 - **首次配置：**
   ```bash
@@ -149,3 +149,5 @@ SSH 别名。kit 需要未过期的 PRIVATE 可见性回执；缺失或过期时
 ## Roadmap · 贡献 · 许可
 
 见 [ROADMAP.md](ROADMAP.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [LICENSE](LICENSE)(MIT)。
+
+配置与运行目录共用发现顺序：`--config-dir`（doctor）优先，然后是 `AUTO_SUPPORT_DATA_DIR`、`AUTO_SUPPORT_CONFIG`、`AUTO_SUPPORT_CONFIG_DIR`、已证明的同级伴生仓、`~/.auto-support-config`、`~/.auto-support-data`。切换前清除旧的高优先级变量，所选 policy 必须属于当前伴生仓。DRAFT READY 只表示配置和本地文档根通过检查。

@@ -35,7 +35,9 @@ that rotation chain valid for the current integration.
 
 Legacy `products/*/escalation.json` files are retired only after all their settings
 are preserved in the matching policy and external consumers are checked. The
-current source reads escalation settings from policy JSON. The exact earlier
+draft pipeline reads root, allow/deny and confidence policy fields. The shipped escalation
+dispatcher uses its own critical-topic constant, CLI dedup arguments and CLI/environment relay
+selection. It does not load policy escalation fields; an external adapter must map those explicitly. The exact earlier
 `scripts/apply.py`, `scripts/capture-key.ps1` and `scripts/verify.sh` helpers,
 `runbooks/new-machine.md`, `runbooks/secret-rotation.md`, `CHANGELOG.md` and
 `PHILOSOPHY.md` are declared retired. They describe the earlier deployment flow;
@@ -44,9 +46,11 @@ permission lists. Removal remains pending an explicit inactive selection and
 replacement of remaining recovery references. Retiring a helper does not retire
 credentials, their backups or unresolved delivery state.
 
-These declarations cover only the named artifacts. Unknown paths and new incident
-outputs need their own producer, consumer, schema and recovery review before they
-can be treated as covered.
+The operator incident runbook may append `metrics/<slug>/incidents.jsonl`, now declared
+as versioned core recovery data. Each record uses schema_version 1, incident_id, ts,
+product_slug, status, summary and recovery_dependencies. No automatic incident writer ships.
+Keep the exact records until incident, delivery and recovery dependencies close. Other unknown
+paths still need producer, consumer, schema and recovery review before use.
 
 Keep only current configuration, needed state and selected evidence. Source
 documentation owns schemas and operating rules; the companion README links here.

@@ -19,6 +19,8 @@ All notable changes to this project are documented here (Keep a Changelog style)
 - Replace the placeholder roadmap and align both README philosophy and storage guidance with these boundaries.
 
 ### Fixed
+- Share doctor/runtime companion discovery, reject a policy from another selected root, and authorize escalation artifacts before writes.
+- Declare versioned incident records, clarify dispatcher policy limits and supported SSH aliases, and ignore ordinary suffix environment files.
 - Decode piped JSON as UTF-8 with optional BOM for Windows command-line input.
 
 ## [0.1.2] - 2026-07-06

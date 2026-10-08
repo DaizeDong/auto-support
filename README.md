@@ -112,8 +112,8 @@ the doctor's `DRAFT READY` result do not initialize or validate this persistence
 product. Full contract + field table: **[CONFIG.md](CONFIG.md)** (deep layout in
 `skills/auto-support/reference/config-schema.md`).
 
-- **Mount (discovery order):** `$AUTO_SUPPORT_CONFIG` → `$AUTO_SUPPORT_CONFIG_DIR` →
-  `~/.auto-support-config/` → `~/.config/auto-support-config/` for the doctor. Explicit missing
+- **Mount (discovery order):** `$AUTO_SUPPORT_DATA_DIR` → `$AUTO_SUPPORT_CONFIG` → `$AUTO_SUPPORT_CONFIG_DIR` →
+  proven sibling → `~/.auto-support-config/` → `~/.auto-support-data/` for doctor and runtime. Explicit missing
   pointers fail. The doctor can select the sole product; the draft CLI and hook consume
   `$AUTO_SUPPORT_POLICY`, and the CLI also accepts `--policy`.
 - **First time:**
@@ -176,3 +176,5 @@ English (`README.md`, authoritative) · 中文 (`README_CN.md`)
 ## Roadmap · Contributing · License
 
 See [ROADMAP.md](ROADMAP.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [LICENSE](LICENSE) (MIT).
+
+The doctor and runtime share discovery: doctor `--config-dir`, then `AUTO_SUPPORT_DATA_DIR`, `AUTO_SUPPORT_CONFIG`, `AUTO_SUPPORT_CONFIG_DIR`, proven sibling, `~/.auto-support-config`, and legacy `~/.auto-support-data`. Clear stale higher-priority variables before switching; the selected policy must belong to the selected companion. DRAFT READY covers configuration and the local documentation root only.

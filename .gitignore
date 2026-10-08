@@ -57,3 +57,8 @@ PROGRESS.md
 scratchpad/
 *.log
 *.tmp
+
+# Also exclude ordinary suffix environment files in the public tool.
+*.env
+!*.env.template
+!*.env.example

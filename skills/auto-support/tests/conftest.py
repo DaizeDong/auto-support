@@ -44,6 +44,7 @@ def private_proof(monkeypatch, root):
         prove_private_companion=lambda path: SimpleNamespace(**fixtures.public_proof_case(root)),
         read_private_companion_git=lambda proof, *args: SimpleNamespace(
             returncode=1 if args[0] == "check-ignore" else 0, stdout="synthetic-head"))
+    monkeypatch.setattr(runtime_data, "_authorize_state", lambda target, root: None)
     monkeypatch.setattr(runtime_data, "_boundary_module", lambda: boundary)
     return boundary
 
@@ -53,6 +54,7 @@ def actual_private_proof(monkeypatch, generated_root):
     import runtime_data
     from types import SimpleNamespace
     from test_review_acceptance_a import fixtures
+    monkeypatch.setattr(runtime_data, "_authorize_state", lambda target, root: None)
     boundary = runtime_data._boundary_module()
     visibility = fixtures.visibility_receipt(generated_root)
     monkeypatch.setattr(runtime_data, "_boundary_module", lambda: SimpleNamespace(

@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "repository_kind": "skill",
+  "configuration": "settings",
+  "rationale": "Runtime behavior consumes a selected PRIVATE product configuration and validates capability-specific readiness.",
+  "documentation": [
+    "README.md",
+    "README_CN.md",
+    "CONFIG.md",
+    "DATA.md"
+  ],
+  "settings": {
+    "schema_document": "CONFIG.md",
+    "discovery_document": "CONFIG.md",
+    "environment": "AUTO_SUPPORT_CONFIG",
+    "aliases": [
+      "AUTO_SUPPORT_DATA_DIR",
+      "AUTO_SUPPORT_CONFIG_DIR"
+    ],
+    "precedence": [
+      "--config-dir",
+      "AUTO_SUPPORT_DATA_DIR",
+      "AUTO_SUPPORT_CONFIG",
+      "AUTO_SUPPORT_CONFIG_DIR",
+      "proven sibling companion",
+      "~/.auto-support-config",
+      "~/.auto-support-data"
+    ],
+    "required_fields": [
+      "registry.schema_version",
+      "registry.products",
+      "product.slug",
+      "product.product_root",
+      "product.status",
+      "policy.product_slug"
+    ],
+    "initializer": {
+      "path": "scripts/init_config.py",
+      "args": [
+        "--out",
+        "{output}"
+      ]
+    },
+    "doctor": {
+      "path": "scripts/verify_config.py",
+      "args": []
+    }
+  }
+}

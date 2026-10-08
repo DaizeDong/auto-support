@@ -29,8 +29,8 @@ integrations; the default supported first-run path returns a local draft.
 Every effective fetch and push remote for runtime output must identify a PRIVATE
 GitHub repository. Standard HTTPS remotes work without an SSH configuration proof.
 Canonical `git@github.com:owner/repository.git` and `ssh://git@github.com/owner/repository.git`
-also require the pinned guards kit's static SSH attestation interface. SSH aliases,
-transport command overrides, proxies and configurations that the kit cannot prove
+and supported SSH aliases require the pinned Guards public companion-proof API.
+Transport command overrides, proxies and configurations that the kit cannot prove
 are refused before escalation state or a reminder database is admitted. An older kit
 without that interface reports an initialization error; use a canonical HTTPS remote
 or update the guards dependency before recording runtime output.

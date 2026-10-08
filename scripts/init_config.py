@@ -10,12 +10,10 @@ output. Self-contained (E5): the committed policy.json carries the placeholder `
 `@secret:...` pointers. The per-machine product.json supplies the documentation root for drafts.
 Discord delivery and secret provisioning are separate deployment integrations.
 
-Discovery convention this skill uses (also CONFIG.md §Discovery, E2). The config dir resolves from,
-in order; first that exists wins:
-  1. $AUTO_SUPPORT_CONFIG        (recommended; location-independent)
-  2. $AUTO_SUPPORT_CONFIG_DIR    (accepted alias)
-  3. ~/.auto-support-config/     (dotfile-in-home fallback)
-  4. ~/.config/auto-support-config/ (XDG-style fallback)
+Discovery is shared with runtime_data and pinned Guards: doctor --config-dir, then
+AUTO_SUPPORT_DATA_DIR, AUTO_SUPPORT_CONFIG, AUTO_SUPPORT_CONFIG_DIR, proven sibling,
+~/.auto-support-config and legacy ~/.auto-support-data. Invalid explicit selections fail.
+The initializer's --out is a separate deliberate creation destination.
 Within the resolved config dir, the skill consumes ONE product via $AUTO_SUPPORT_POLICY pointing at
 products/<slug>/policy.json (or the sole product when exactly one exists).
 

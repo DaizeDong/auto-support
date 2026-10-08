@@ -34,3 +34,7 @@ They cannot establish a deployment's listener, host permissions, live relay or m
 Those integrations require separate checks on the intended setup before enabling non-draft use.
 Public documentation describes the reusable controls and their limits; private product policy
 and operational observations remain in the companion.
+
+Storage admission also requires a unique source-owned artifact declaration. Configuration
+and runtime discovery use the same selected companion, so a stale higher-priority pointer
+cannot silently split policy inspection from runtime output.

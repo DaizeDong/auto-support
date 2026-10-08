@@ -6,8 +6,10 @@ repository (Mode B). The public tool ships an empty initializer and synthetic te
 
 ## Discovery and selection (E2)
 
-The doctor uses `--config-dir`, then `AUTO_SUPPORT_CONFIG`, `AUTO_SUPPORT_CONFIG_DIR`,
-`~/.auto-support-config`, and `~/.config/auto-support-config`. An explicit invalid directory
+The doctor uses `--config-dir`, then the shared runtime order: `AUTO_SUPPORT_DATA_DIR`,
+`AUTO_SUPPORT_CONFIG`, `AUTO_SUPPORT_CONFIG_DIR`, a proven sibling companion,
+`~/.auto-support-config`, and legacy `~/.auto-support-data`. A selected `data` child resolves
+to its companion root for settings. An explicit invalid directory
 fails; it does not select a different config. Product selection uses `--policy`, then
 `AUTO_SUPPORT_POLICY`, then `--slug`, then the sole product. Multiple products require a selector.
 
@@ -88,6 +90,7 @@ back up credentials separately. Never copy production records into public exampl
 
 ## Switching products (E5)
 
+Clear `AUTO_SUPPORT_DATA_DIR` and stale `AUTO_SUPPORT_CONFIG_DIR` before switching.
 Point `AUTO_SUPPORT_CONFIG` at the new companion for doctor and state discovery, and
 `AUTO_SUPPORT_POLICY` at its selected product policy for CLI and hook. Run the doctor against
 each configuration after filling its root. `--root`, when supplied to the draft CLI, must match

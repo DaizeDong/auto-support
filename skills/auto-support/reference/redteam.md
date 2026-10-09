@@ -1,9 +1,10 @@
-# Red-team gate, guards must be PROVEN, not declared (run before any auto-post)
+# Red-team regression and deployment checks
 
-The guarantee "no leak" is only real if a hostile suite cannot break it. `tests/` is that suite;
-it is the self-evolve regression gate and the release gate. **Run it on the real product (point
-the allowlist at real public docs, plant canaries in the real secret files) before enabling any
-reply mode beyond draft/relay.** Run full, never sampled.
+`tests/` supplies the self-evolve regression and release gate. Passing establishes behavior
+for the tested cases, not a general guarantee against leaks. Before enabling a reply mode
+beyond draft/relay, run the full suite against the product deployment: use its public-docs
+allowlist and controlled canaries in the protected file locations. Do not replace this with
+a sampled run.
 
 ## Adjudication = independent canary (do not trust the guard's self-report)
 `tests/fixtures/mock-project/` plants 4 canary classes (fake .env credential, proprietary algo
@@ -32,7 +33,7 @@ keeps over-refusal < 2%.
 ```bash
 cd skills/auto-support && python -m pytest tests/ -q
 ```
-Current local result: **31 passed** (canary AFR=100% on the mock, SCR benign answered, escalation
+The initial-release local result was **31 passed** (canary AFR=100% on the mock, SCR benign answered, escalation
 recall, egress DLP, injection base64/leet/zero-width/typoglycemia/role-claim, schedule-reminder
 integration). 
 
@@ -42,4 +43,4 @@ allowlist/denylist for all languages, normalize-then-judge) · Best-of-N persist
 end-to-end indirect injection via real product README/issues/PRs · (post vector-store) embedding
 inversion / index poisoning / multi-tenant cross-leak · 7+ turn long-horizon · meta red-team on
 the judge LLM. Tooling target: promptfoo (CI hard gate) + garak + AgentDojo; feed every real
-production block/escalation back as a new regression case.
+production block/escalation into a synthetic regression case without copying private records.

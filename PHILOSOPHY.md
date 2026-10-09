@@ -25,7 +25,10 @@ establish provenance, while interpretation quality still needs independent evalu
 A request to escalate is not a send receipt. Confirmed relay success starts cooldown; an uncertain
 response retains private reconciliation state so a retry cannot silently duplicate a delivery.
 The state belongs in a PRIVATE versioned companion, and storage prerequisites are checked before
-dispatch. The reminder bridge likewise requires an explicitly initialized scheduler database.
+dispatch. Storage admission requires a unique source-owned artifact declaration. Configuration
+and runtime discovery select the same companion, keeping policy inspection and output aligned
+when a higher-priority selector is set. The reminder bridge requires an explicitly initialized
+scheduler database.
 
 ## Keep evidence appropriate to the claim
 
@@ -34,7 +37,3 @@ They cannot establish a deployment's listener, host permissions, live relay or m
 Those integrations require separate checks on the intended setup before enabling non-draft use.
 Public documentation describes the reusable controls and their limits; private product policy
 and operational observations remain in the companion.
-
-Storage admission also requires a unique source-owned artifact declaration. Configuration
-and runtime discovery use the same selected companion, so a stale higher-priority pointer
-cannot silently split policy inspection from runtime output.

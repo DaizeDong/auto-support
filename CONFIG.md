@@ -31,6 +31,13 @@ visibility check. Set `AUTO_SUPPORT_CONFIG` to the private companion or `AUTO_SU
 to its existing data directory. `AUTO_SUPPORT_STATE_DIR` and `--state-path` may only select a
 location within that verified data directory. Missing proof fails before dispatch; there is no
 unversioned or public fallback. Git and authenticated `gh` are required for runtime state writes.
+The pinned Guards public companion-proof API checks every effective fetch and push route,
+including supported SSH aliases, against current PRIVATE visibility receipts. Refresh missing
+or stale receipts through the normal visibility workflow. The adapter then queries every proven
+repository through authenticated `gh` and repeats the shared proof. Failed live visibility,
+changed publication state or an older kit without that public API blocks persistence. The
+companion needs committed history; state, locks, atomic-write temporary files and database
+sidecars must remain eligible for version control. Ignored targets and hard links are refused.
 
 The optional reminder bridge requires `--db` or `SCHEDULE_DB_PATH` to select an absolute
 database path in a verified PRIVATE repository. It checks the database and SQLite sidecars
@@ -81,6 +88,21 @@ No `apply.py`, secret-capture helper or Discord listener is generated.
 
 `DRAFT READY` means configuration and local documentation root checks passed. It does not mean
 the host hook, public-document freshness, Discord transport or a semantic judge was tested.
+
+### Reminder persistence setup
+
+Set `AUTO_SUPPORT_REMINDER_PY` to the installed `schedule-reminder` CLI and
+`SCHEDULE_DB_PATH` to an absolute database path in an initialized PRIVATE versioned companion.
+Initialize it explicitly before calling `reminder_bridge.py`:
+
+```bash
+python "$AUTO_SUPPORT_REMINDER_PY" --db "$SCHEDULE_DB_PATH" init
+```
+
+Require both a successful JSON receipt and exit code. Current scheduler versions reject an
+uninitialized database; draft setup and `DRAFT READY` do not initialize or validate this dependency.
+The [escalation reference](skills/auto-support/reference/escalation.md#reminder-persistence)
+defines receipt validation, replay and transition behavior.
 
 ## Private data and secrets (E6)
 

@@ -1,6 +1,6 @@
 # auto-support
 
-Answer your product's Discord users from public docs only, fail-closed guards keep secrets, algorithms, and PII in; escalate the unsure to founders.
+Draft cited answers to product questions from public documentation, with path and content checks and escalation requests for unsupported questions.
 
 [![Claude Code Skill](https://img.shields.io/badge/Claude%20Code-Skill-orange?style=flat)](https://docs.anthropic.com/en/docs/claude-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -31,14 +31,15 @@ deployment checks; the plugin does not install an operating-system sandbox.
 
 [Read the full design philosophy](PHILOSOPHY.md).
 
-## What it is (and isn't)
+## Scope
 
-**Is:** a Claude Code plugin you deploy into a product's repo root `.claude/` to answer that
-product's Discord users from its **public** docs, with deterministic leak guards and
-founder-escalation when unsure. MVP replies are human-reviewed drafts / relay, not auto-posted.
+This Claude Code plugin supports product Discord questions through public-document retrieval,
+cited drafts and founder review or relay. It is deployed through the product root's `.claude/`
+configuration. The shipped CLI returns local drafts; it does not automatically post replies.
 
-**Isn't:** a general chatbot, a code explainer, or anything that reads source/secrets to "be
-helpful". Out-of-allowlist questions are refused and escalated, never answered from memory.
+Questions requiring source code, secrets or other material outside the public allowlist are
+refused and referred for review. General conversation and code explanation are outside this scope;
+missing evidence cannot be replaced with answers from memory.
 
 ## How it works, four fail-closed gates
 
@@ -93,52 +94,24 @@ This produces a cited draft with no Discord credentials. Keep real configuration
 records in a PRIVATE versioned companion. The optional delivery integration must separately
 configure the host hook, relay and approvals; this initializer does not ship an `apply.py`.
 
-Before enabling turn persistence, set `AUTO_SUPPORT_REMINDER_PY` to the installed
-`schedule-reminder` CLI and `SCHEDULE_DB_PATH` to an absolute database path in an initialized
-PRIVATE versioned companion. Initialize that database explicitly and require a successful
-JSON receipt and exit code before calling `reminder_bridge.py`:
-
-```bash
-python "$AUTO_SUPPORT_REMINDER_PY" --db "$SCHEDULE_DB_PATH" init
-```
-
-Current scheduler versions reject an uninitialized database. The draft quick start and
-the doctor's `DRAFT READY` result do not initialize or validate this persistence dependency.
-
 ## Config
 
-`auto-support` is **config-bearing**, secrets and the per-product knowledge boundary live in a
-**separate, private** companion repo (`auto-support-config`, Mode B), one isolated `policy.json` per
-product. Full contract + field table: **[CONFIG.md](CONFIG.md)** (deep layout in
-`skills/auto-support/reference/config-schema.md`).
+Store per-product configuration and runtime records in a separate PRIVATE versioned
+`auto-support-config` companion. Each product has its own `policy.json`.
+[CONFIG.md](CONFIG.md) owns discovery order, policy selection, initialization and switching;
+[the schema reference](skills/auto-support/reference/config-schema.md) describes the layout.
 
-- **Mount (discovery order):** `$AUTO_SUPPORT_DATA_DIR` → `$AUTO_SUPPORT_CONFIG` → `$AUTO_SUPPORT_CONFIG_DIR` →
-  proven sibling → `~/.auto-support-config/` → `~/.auto-support-data/` for doctor and runtime. Explicit missing
-  pointers fail. The doctor can select the sole product; the draft CLI and hook consume
-  `$AUTO_SUPPORT_POLICY`, and the CLI also accepts `--policy`.
-- **First time:**
-  ```bash
-  # Run from the repository root.
-  python scripts/init_config.py --slug example
-  export AUTO_SUPPORT_CONFIG=~/.auto-support-config
-  python scripts/verify_config.py                  # fill product.json before expecting DRAFT READY
-  ```
-- **Switch configs (hot-swap):** repoint the env var at another config dir, configs are
-  self-contained (`product_root` is a placeholder, no baked-in paths):
-  Repoint `AUTO_SUPPORT_CONFIG` for the doctor and `AUTO_SUPPORT_POLICY` for the draft CLI/hook.
+When switching companions, clear stale higher-priority selectors and update both the doctor/state
+selection and `AUTO_SUPPORT_POLICY` for the draft CLI and hook. The policy must belong to the
+selected companion. `DRAFT READY` covers configuration and the local documentation root only.
 
-  Runtime persistence uses the selected Guards kit's public companion-proof API for all
-  effective fetch and push routes, including supported SSH aliases. The kit requires a
-  current PRIVATE visibility receipt; missing or stale receipts must be refreshed through
-  the normal visibility workflow. The adapter then queries every proven repository through
-  authenticated `gh` and repeats the shared proof. Changed publication state, failed live
-  visibility or an older kit without the public API blocks persistence.
-  The companion must have committed history. State, dispatch locks, atomic-write temporary
-  files and database sidecars must all be eligible for version control; ignored targets
-  and hard links are refused before dispatch.
-- **Secrets:** Mode B, `secrets/*` is gitignored and never enters git; `@secret:...` pointers in
-  `policy.json` require a separately configured delivery adapter. Back up secrets out-of-band.
-  Private runtime records are versioned in the companion, including escalation state.
+The current credential setup uses Mode B: `secrets/*` is excluded from Git and credentials need
+an approved separate backup. Runtime records, including escalation state, remain versioned.
+Optional `@secret:...` references require a separately configured delivery adapter.
+
+Before persisting a turn, follow [reminder setup](CONFIG.md#reminder-persistence-setup) to select
+and initialize a PRIVATE scheduler database. Follow [DATA.md](DATA.md) for state retention and
+recovery; uncertain delivery locks must remain until the outcome is reconciled.
 
 ## How to invoke
 
@@ -176,5 +149,3 @@ English (`README.md`, authoritative) · 中文 (`README_CN.md`)
 ## Roadmap · Contributing · License
 
 See [ROADMAP.md](ROADMAP.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [LICENSE](LICENSE) (MIT).
-
-The doctor and runtime share discovery: doctor `--config-dir`, then `AUTO_SUPPORT_DATA_DIR`, `AUTO_SUPPORT_CONFIG`, `AUTO_SUPPORT_CONFIG_DIR`, proven sibling, `~/.auto-support-config`, and legacy `~/.auto-support-data`. Clear stale higher-priority variables before switching; the selected policy must belong to the selected companion. DRAFT READY covers configuration and the local documentation root only.

@@ -1,10 +1,10 @@
-# Security model, why the guards live OUTSIDE the prompt
+# Security model
 
-The single most important fact: **a guardrail written into SKILL.md or a system prompt is a
-suggestion the model may ignore on any turn.** AWS's own baseline showed an LLM told "never
-reveal secrets" leaking 3/3 times; adding one deterministic `PreToolUse` hook made it 3/3
-blocked. This implementation places checks outside the model. Host enforcement still needs
-deployment verification; local tests cannot establish arbitrary-host containment.
+Prompt instructions alone do not enforce access or output restrictions. The design cites an
+AWS baseline in which an LLM instructed to keep secrets leaked in 3/3 cases; a deterministic
+`PreToolUse` hook blocked 3/3 cases. This historical example motivates checks outside the model;
+it does not establish this plugin's effectiveness. Host enforcement still needs deployment
+verification; local tests cannot establish containment on an arbitrary host.
 
 ## The four gates (defense in depth, no single gate is trusted)
 
@@ -22,8 +22,8 @@ neutral refusal line (`这个问题我无法确定，请联系团队进一步确
 
 ## Knowledge boundary = allowlist-first, default-deny, denylist wins
 
-We do not enumerate "what not to say" (a denylist always leaks). We define "only answer from
-these public sources" and validate access against that boundary:
+The allowlist defines the permitted public sources. Deny rules further restrict that set,
+and access checks enforce both rules in this order:
 
 - `guardrails.path_verdict(path, allow, deny)` order: **denylist hit -> DENY** (a secret path
   loses even if also allowlisted); **allowlist hit -> ALLOW**; **otherwise -> DENY**.

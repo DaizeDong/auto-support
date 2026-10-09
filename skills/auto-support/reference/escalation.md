@@ -1,8 +1,8 @@
-# Escalation, the one and only fallback action
+# Escalation and delivery recovery
 
-When the bot is not allowed or not able to answer, the ONLY thing it may do is escalate. This is
-codified abstention: `scripts/escalate.py` makes "escalate" an observable, de-bounced action so
-relay never becomes an alert storm (which would crater founder ack-rate).
+When the answer pipeline cannot support an answer, it returns a neutral refusal and requests
+founder review. `scripts/escalate.py` provides the separate authorized relay operation, with
+deduplication and cooldown to limit repeated notifications.
 
 ## Triggers (multi-signal OR; business rules outrank confidence)
 (a) denylist topic/path hit (even if source could answer) · (b) answer not groundable to the

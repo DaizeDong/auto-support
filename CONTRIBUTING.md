@@ -1,6 +1,7 @@
 # Contributing to auto-support
 
-This is a security-critical skill. The bar is **proven, not declared** (PHILOSOPHY P5).
+Changes must preserve the public-document boundary and pass the regression requirements below.
+The rationale and evidence limits are in [PHILOSOPHY.md](PHILOSOPHY.md).
 
 ## Non-negotiables for any change
 1. **Run the red-team gate and keep it green:** `cd skills/auto-support && python -m pytest tests/ -q`.

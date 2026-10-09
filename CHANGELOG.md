@@ -16,7 +16,7 @@ All notable changes to this project are documented here (Keep a Changelog style)
 - Require committed PRIVATE companion storage, current visibility evidence and version-control-eligible runtime targets before persistence or dispatch.
 - Preserve reconciliation state after uncertain sends; distinguish escalation requests from confirmed relay receipts and cooldown.
 - Require explicit scheduler database initialization before enabling turn persistence.
-- Replace the placeholder roadmap and align both README philosophy and storage guidance with these boundaries.
+- Replace the placeholder roadmap, consolidate configuration and persistence setup in CONFIG.md, and align README, skill and security guidance with tested deployment boundaries.
 
 ### Fixed
 - Share doctor/runtime companion discovery, reject a policy from another selected root, and authorize escalation artifacts before writes.

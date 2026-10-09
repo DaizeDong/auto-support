@@ -1,10 +1,10 @@
 # auto-support
 
-只用公开文档回答产品 Discord 用户的使用问题， fail-closed 护栏把机密/算法/PII 锁在里面；拿不准就升级给创始人。
+根据产品公开文档起草带引用的回答，检查访问路径和内容，并将无法支持的问题提交团队复核。
 
 [![Claude Code Skill](https://img.shields.io/badge/Claude%20Code-Skill-orange?style=flat)](https://docs.anthropic.com/en/docs/claude-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Languages](https://img.shields.io/badge/Languages-EN%20%2F%20CN-blue?style=flat)](#languages)
+[![Languages](https://img.shields.io/badge/Languages-EN%20%2F%20CN-blue?style=flat)](#语言)
 [![Roadmap](https://img.shields.io/badge/Roadmap-v0.1.2-purple?style=flat)](ROADMAP.md)
 
 [English](README.md) | [中文版](README_CN.md)
@@ -27,13 +27,13 @@
 
 [完整设计理念](PHILOSOPHY.md)。
 
-## 它是什么(不是什么)
+## 适用范围
 
-**是：** 一个 Claude Code 插件，部署到产品仓库根目录的 `.claude/`，只用该产品的**公开**文档回答其
-Discord 用户的使用问题，带确定性防泄密护栏、拿不准即升级创始人。MVP 走「人审草稿/relay」，不自动直发。
+这是用于产品 Discord 客服的 Claude Code 插件，通过公开文档检索生成带引用的草稿，再由创始人
+审核或通过 relay 处理。部署配置位于产品根目录的 `.claude/`。自带 CLI 返回本地草稿，不自动发布回复。
 
-**不是：** 通用聊天机器人、代码讲解器，或任何为了「帮忙」去读源码/机密的东西。allowlist 之外的问题一律
-拒答 + 升级，绝不凭记忆作答。
+需要源码、机密或公开 allowlist 之外资料的问题会被拒答并提交复核。通用聊天和代码讲解不在适用
+范围内；缺少证据时不能凭记忆补答。
 
 ## 工作原理， 纵深四闸（fail-closed）
 
@@ -83,42 +83,20 @@ python skills/auto-support/scripts/answer_pipeline.py --policy ../auto-support-c
 这会生成带引用的草稿，无需 Discord 凭据。真实配置和运行记录应保存在私有伴生仓，并纳入版本管理。
 消息投递还需要单独配置宿主 hook、relay 和审批；初始化器没有提供 `apply.py`。
 
-开启对话持久化前，将 `AUTO_SUPPORT_REMINDER_PY` 设为已安装的 `schedule-reminder` CLI，
-将 `SCHEDULE_DB_PATH` 设为 PRIVATE 伴生仓内数据库的绝对路径，再显式初始化数据库：
-
-```bash
-python "$AUTO_SUPPORT_REMINDER_PY" --db "$SCHEDULE_DB_PATH" init
-```
-
-确认退出码和 JSON 回执都表示成功后，再调用 `reminder_bridge.py`。当前调度器会拒绝未初始化的
-数据库。快速开始生成的草稿，以及 doctor 的 `DRAFT READY`，都没有初始化或验证这项持久化依赖。
-
 ## 配置
 
-`auto-support` 是**带 config 的 skill**, 机密与每产品知识边界都放在一个**独立、私有**的伴随仓
-（`auto-support-config`，Mode B），每个产品一份隔离的 `policy.json`。完整规范+字段表见
-**[CONFIG.md](CONFIG.md)**（深层布局见 `skills/auto-support/reference/config-schema.md`）。
+每个产品的配置和运行记录放在独立、纳入版本管理的 PRIVATE `auto-support-config` 伴生仓中，
+每个产品有自己的 `policy.json`。[CONFIG.md](CONFIG.md)规定发现顺序、策略选择、初始化和切换；
+[字段参考](skills/auto-support/reference/config-schema.md)说明目录结构。
 
-- **挂载(发现顺序):** `$AUTO_SUPPORT_DATA_DIR` → `$AUTO_SUPPORT_CONFIG` → `$AUTO_SUPPORT_CONFIG_DIR` →
-  已证明的同级伴生仓 → `~/.auto-support-config/` → `~/.auto-support-data/`，这是 doctor 的发现顺序。显式指定的路径
-  不存在时会失败。doctor 可以选择唯一产品；草稿 CLI 和 hook 使用 `$AUTO_SUPPORT_POLICY`，CLI 也接受 `--policy`。
-- **首次配置：**
-  ```bash
-  # 在仓库根目录运行。
-  python scripts/init_config.py --slug example
-  export AUTO_SUPPORT_CONFIG=~/.auto-support-config
-  python scripts/verify_config.py                  # 先填写 product.json，才能得到 DRAFT READY
-  ```
-- **切换 config(即插即用):** 把环境变量指向另一个 config 目录即可， config 自包含(`product_root`
-  为占位符)：doctor 使用 `AUTO_SUPPORT_CONFIG`，草稿 CLI 和 hook 使用 `AUTO_SUPPORT_POLICY`，切换时都要更新。
-运行记录通过所选 Guards kit 的公开伴生仓证明接口验证所有有效 fetch/push 路由，包括受支持的
-SSH 别名。kit 需要未过期的 PRIVATE 可见性回执；缺失或过期时，先通过正常可见性流程刷新。
-适配器随后使用已认证的 `gh` 查询已证明的仓库，并重复共享证明。公开状态变化、实时查询失败，
-或旧 kit 缺少公开 API，都会阻止持久化。伴生仓须已有提交历史；状态、投递锁、原子写入临时文件
-和数据库旁文件都须允许纳入版本管理。被忽略的目标和硬链接会在发送前被拒绝。
+切换伴生仓前，清除优先级更高的旧变量，并同时更新 doctor/状态存储选择和草稿 CLI、hook 使用的
+`AUTO_SUPPORT_POLICY`。策略必须属于选定的伴生仓。`DRAFT READY` 只验证配置和本地文档目录。
 
-- **密钥：** Mode B, `secrets/*` 已 gitignore,永不入库；`policy.json` 里的 `@secret:...` 指针由
-  独立配置的投递适配器解析。密钥用库外备份；运行记录和升级状态保存在私有伴生仓并纳入版本管理。
+当前凭据配置采用 Mode B：`secrets/*` 不进入 Git，凭据需要获准的独立备份。运行记录和升级状态
+仍须纳入版本管理。可选的 `@secret:...` 引用由另外配置的投递适配器解析。
+
+持久化对话前，按[提醒存储设置](CONFIG.md#reminder-persistence-setup)选择并初始化 PRIVATE 调度器
+数据库。状态保留和恢复见 [DATA.md](DATA.md)；结果不明的投递锁须保留到核对完成。
 
 ## 如何触发
 
@@ -149,5 +127,3 @@ SSH 别名。kit 需要未过期的 PRIVATE 可见性回执；缺失或过期时
 ## Roadmap · 贡献 · 许可
 
 见 [ROADMAP.md](ROADMAP.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [LICENSE](LICENSE)(MIT)。
-
-配置与运行目录共用发现顺序：`--config-dir`（doctor）优先，然后是 `AUTO_SUPPORT_DATA_DIR`、`AUTO_SUPPORT_CONFIG`、`AUTO_SUPPORT_CONFIG_DIR`、已证明的同级伴生仓、`~/.auto-support-config`、`~/.auto-support-data`。切换前清除旧的高优先级变量，所选 policy 必须属于当前伴生仓。DRAFT READY 只表示配置和本地文档根通过检查。

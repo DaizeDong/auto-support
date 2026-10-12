@@ -7,8 +7,8 @@ repository (Mode B). The public tool ships an empty initializer and synthetic te
 ## Discovery and selection (E2)
 
 The doctor uses `--config-dir`, then the shared runtime order: `AUTO_SUPPORT_DATA_DIR`,
-`AUTO_SUPPORT_CONFIG`, `AUTO_SUPPORT_CONFIG_DIR`, a proven sibling companion,
-`~/.auto-support-config`, and legacy `~/.auto-support-data`. A selected `data` child resolves
+`AUTO_SUPPORT_CONFIG`, `AUTO_SUPPORT_CONFIG_DIR`, then a proven sibling companion. There is no
+home-directory location. A selected `data` child resolves
 to its companion root for settings. An explicit invalid directory
 fails; it does not select a different config. Product selection uses `--policy`, then
 `AUTO_SUPPORT_POLICY`, then `--slug`, then the sole product. Multiple products require a selector.

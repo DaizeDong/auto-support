@@ -22,9 +22,7 @@
       "AUTO_SUPPORT_DATA_DIR",
       "AUTO_SUPPORT_CONFIG",
       "AUTO_SUPPORT_CONFIG_DIR",
-      "proven sibling companion",
-      "~/.auto-support-config",
-      "~/.auto-support-data"
+      "proven sibling companion"
     ],
     "required_fields": [
       "registry.schema_version",

@@ -11,8 +11,8 @@ output. Self-contained (E5): the committed policy.json carries the placeholder `
 Discord delivery and secret provisioning are separate deployment integrations.
 
 Discovery is shared with runtime_data and pinned Guards: doctor --config-dir, then
-AUTO_SUPPORT_DATA_DIR, AUTO_SUPPORT_CONFIG, AUTO_SUPPORT_CONFIG_DIR, proven sibling,
-~/.auto-support-config and legacy ~/.auto-support-data. Invalid explicit selections fail.
+AUTO_SUPPORT_DATA_DIR, AUTO_SUPPORT_CONFIG, AUTO_SUPPORT_CONFIG_DIR, then the proven sibling
+auto-support-config. There is no home-directory location. Invalid explicit selections fail.
 The initializer's --out is a separate deliberate creation destination.
 Within the resolved config dir, the skill consumes ONE product via $AUTO_SUPPORT_POLICY pointing at
 products/<slug>/policy.json (or the sole product when exactly one exists).
@@ -21,7 +21,8 @@ Usage:
   python init_config.py [--slug <name>] [--out <dir>] [--force]
 
 --slug  product slug (kebab-case); default "example".
---out   target config-repo dir; default the discovery path ~/.auto-support-config/.
+--out   target config-repo dir; default the discovered companion. With neither, it stops and
+        says how to create the companion (there is no home-directory default).
 Stdlib only. Cross-platform. Never writes secrets; never echoes anything secret.
 """
 import argparse
@@ -34,7 +35,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "skills/auto-suppor
 import policy as P
 
 ENV_VAR = "AUTO_SUPPORT_CONFIG"
-DEFAULT_DIR = os.path.expanduser("~/.auto-support-config")
+NO_COMPANION = ("no companion found: create a PRIVATE repository with an origin and clone it beside "
+                "this repository as auto-support-config, set AUTO_SUPPORT_CONFIG to it, or pass --out <dir>")
+
+
+def discovered_companion():
+    """The companion the shared resolver finds (variables, then the proven sibling), or None."""
+    import runtime_data
+    found = runtime_data._guard_base(companion=True, required=False)
+    return str(found) if found else None
 
 GITIGNORE = """\
 # auto-support-config — Mode B secrets gate (config-spec E6). Real values never enter git.
@@ -140,14 +149,17 @@ def write(path, content, force):
 def main():
     ap = argparse.ArgumentParser(description="Stamp a spec-conformant auto-support-config repo.")
     ap.add_argument("--slug", default="example", help="product slug (kebab-case)")
-    ap.add_argument("--out", default=None, help="config-repo dir (default ~/.auto-support-config)")
+    ap.add_argument("--out", default=None, help="config-repo dir (default: the discovered companion)")
     ap.add_argument("--force", action="store_true")
     a = ap.parse_args()
 
     slug = a.slug
     if not P.valid_slug(slug):
         ap.error("--slug must contain only lowercase letters, digits and single separating hyphens")
-    out = os.path.abspath(os.path.expanduser(a.out or DEFAULT_DIR))
+    selected = a.out or discovered_companion()
+    if not selected:
+        ap.error(NO_COMPANION)
+    out = os.path.abspath(os.path.expanduser(selected))
     if Path(out).resolve().is_relative_to(Path(__file__).resolve().parents[1]):
         ap.error("--out must be outside the public tool repository")
     prod = os.path.join(out, "products", slug)
@@ -168,7 +180,7 @@ def main():
     registry["products"] = sorted(set(registry["products"]) | {slug})
 
     print("Init auto-support-config (Mode B) at %s" % out)
-    print("Discovery env var: %s  (alias %s_DIR, fallback %s)" % (ENV_VAR, ENV_VAR, DEFAULT_DIR))
+    print("Discovery env var: %s  (alias %s_DIR, then the proven sibling companion)" % (ENV_VAR, ENV_VAR))
     print("Product: %s" % slug)
 
     def j(obj):

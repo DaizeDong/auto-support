@@ -81,7 +81,7 @@ def _private_repo(path):
 def private_file_path(value, *, sidecars=()):
     """Validate a selected runtime file and its sidecars without creating anything.
 
-    Every existing destination must stay in the same verified private repository.
+    Every existing destination must stay in the same companion worktree.
     SQLite sidecars and hard links cannot redirect writes outside that boundary.
     """
     if not isinstance(value, (str, Path)) or not str(value).strip():
@@ -100,7 +100,6 @@ def private_file_path(value, *, sidecars=()):
 
     safe_components(requested)
     root = _private_repo(requested)
-    verified_paths = {requested.resolve(): root}
     target = requested.resolve()
     for path in [target, *(Path(str(target) + suffix) for suffix in sidecars)]:
         actual = path.resolve()
@@ -109,9 +108,7 @@ def private_file_path(value, *, sidecars=()):
             raise DataBoundaryError("Runtime destination must remain a file in the selected private repository")
         if actual.exists() and actual.stat().st_nlink > 1:
             raise DataBoundaryError("Runtime destination cannot be a hard link")
-        if actual not in verified_paths:
-            verified_paths[actual] = _private_repo(actual)
-        if verified_paths[actual] != root:
+        if _private_repo(actual) != root:
             raise DataBoundaryError("Runtime destination crosses a repository boundary")
     return target
 

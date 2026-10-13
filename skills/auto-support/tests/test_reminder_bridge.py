@@ -9,8 +9,7 @@ import sys
 import pytest
 
 import reminder_bridge as RB
-import runtime_data as D
-from conftest import private_proof
+from conftest import companion_worktree
 
 BASE = RB.REMINDER_PY
 pytestmark = pytest.mark.skipif(not os.path.isfile(BASE), reason="reminder base not installed")
@@ -18,23 +17,7 @@ pytestmark = pytest.mark.skipif(not os.path.isfile(BASE), reason="reminder base 
 
 @pytest.fixture()
 def db(tmp_path, monkeypatch):
-    private_proof(monkeypatch, tmp_path)
-    # Only Git/visibility transport is synthetic; the real reminder CLI owns SQLite.
-    def command(argv, **kwargs):
-        if argv[0] == "gh":
-            return "true"
-        if "rev-parse" in argv:
-            return str(tmp_path)
-        if argv[3:] == ["remote"]:
-            return "origin"
-        if "--get-regexp" in argv:
-            return ""
-        if argv[3:] == ["config", "--null", "--list"]:
-            return ""
-        if argv[3:5] == ["remote", "get-url"]:
-            return "https://github.com/example-owner/example-config.git"
-        pytest.fail("unexpected private-boundary command")
-    monkeypatch.setattr(D, "_run", command)
+    companion_worktree(monkeypatch, tmp_path)
     target = str(tmp_path / "as.db")
     initialized = subprocess.run(
         [sys.executable, "-X", "utf8", "-B", BASE, "--db", target, "init"],

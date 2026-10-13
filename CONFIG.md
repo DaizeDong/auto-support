@@ -26,24 +26,20 @@ the selected root before and after resolving links. `Grep` and `Glob` require an
 `path`; directory searches are rejected if any reachable file is outside the public policy.
 Shell reads accept only the small literal grammar in the hook, with no expansions or pipelines.
 
-Real escalation state uses the pinned guard's companion discovery plus a live GitHub PRIVATE
-visibility check. Set `AUTO_SUPPORT_CONFIG` to the private companion or `AUTO_SUPPORT_DATA_DIR`
-to its existing data directory. `AUTO_SUPPORT_STATE_DIR` and `--state-path` may only select a
-location within that verified data directory. Missing proof fails before dispatch; there is no
-unversioned or public fallback. Git and authenticated `gh` are required for runtime state writes.
-The pinned Guards public companion-proof API checks every effective fetch and push route,
-including supported SSH aliases, against current PRIVATE visibility receipts. Refresh missing
-or stale receipts through the normal visibility workflow. The adapter then queries every proven
-repository through authenticated `gh` and repeats the shared proof. Failed live visibility,
-changed publication state or an older kit without that public API blocks persistence. The
-companion needs committed history; state, locks, atomic-write temporary files and database
-sidecars must remain eligible for version control. Ignored targets and hard links are refused.
+Real escalation state uses the pinned guard's companion discovery. Set `AUTO_SUPPORT_CONFIG`
+to the private companion or `AUTO_SUPPORT_DATA_DIR` to its existing data directory.
+`AUTO_SUPPORT_STATE_DIR` and `--state-path` may only select a location within that data
+directory. An unresolved companion fails before dispatch; there is no unversioned or in-repo
+fallback. The runtime checks are path-only and start no Git or `gh` process: the destination
+must sit inside a Git worktree that is not this tool tree, with no parent traversal, `.git`
+components, alternate streams, links or hard links. Repository visibility is not checked at
+runtime; the commit and push hooks and CI enforce PRIVATE publication of the companion.
 
 The optional reminder bridge requires `--db` or `SCHEDULE_DB_PATH` to select an absolute
-database path in a verified PRIVATE repository. It checks the database and SQLite sidecars
-before every writing CLI invocation. An unset path, unknown origin, public repository,
-cross-repository link or hard link stops before persistence. The bridge does not inherit an
-unverified database default from the reminder installation.
+database path in the companion worktree. It checks the database and SQLite sidecars before
+every writing CLI invocation. An unset path, a path outside any Git worktree, a nested
+repository or a hard link stops before persistence. The bridge does not inherit a database
+default from the reminder installation.
 
 ## Schema (E1)
 

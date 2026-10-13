@@ -26,11 +26,6 @@ Credentials under secrets/ remain excluded from Git. The initializer supplies no
 Discord listener or credential capture helper. Those are separately validated deployment
 integrations; the default supported first-run path returns a local draft.
 
-Every effective fetch and push remote for runtime output must identify a PRIVATE
-GitHub repository. Standard HTTPS remotes work without an SSH configuration proof.
-Canonical `git@github.com:owner/repository.git` and `ssh://git@github.com/owner/repository.git`
-and supported SSH aliases require the pinned Guards public companion-proof API.
-Transport command overrides, proxies and configurations that the kit cannot prove
-are refused before escalation state or a reminder database is admitted. An older kit
-without that interface reports an initialization error; use a canonical HTTPS remote
-or update the guards dependency before recording runtime output.
+Runtime output must resolve inside the companion's Git worktree, outside this tool
+repository. The runtime does not inspect remotes or query visibility; keep the companion
+PRIVATE, which the commit and push hooks and CI enforce.

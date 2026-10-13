@@ -12,7 +12,7 @@ main-branch behavior; older release entries retain their historical meaning.
   interpretation through installed `llmcall`; missing or uncertain interpretation causes refusal.
 - Keep drafting, escalation requests and confirmed delivery distinct. Uncertain sends retain
   reconciliation state and must be inspected before retrying.
-- Share doctor/runtime companion discovery and prove PRIVATE versioned storage before persistence.
+- Share doctor/runtime companion discovery and refuse destinations outside the companion worktree before persistence.
   Validate declared escalation outputs and retain incident records under their recovery contract.
 - Require explicit database initialization before using the scheduler persistence bridge.
 

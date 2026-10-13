@@ -1,68 +1,17 @@
 """Offline HTTPS admission and delivered-but-uncommitted regression controls."""
 import importlib.util
 import json
-import os
 from pathlib import Path
 import sys
 
 import pytest
 
 import escalate as E
-import reminder_bridge as B
-import runtime_data as D
-from conftest import private_proof
 
 spec = importlib.util.spec_from_file_location(
     "reconciliation_fixtures", Path(__file__).resolve().parents[3] / "tools/make_fixtures.py")
 fixtures = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(fixtures)
-
-
-@pytest.mark.parametrize("name,value,allowed", fixtures.live_visibility_environment_cases())
-@pytest.mark.parametrize("purpose", ["escalation", "database"])
-def test_live_visibility_overrides_fail_before_creation_or_dispatch(tmp_path, monkeypatch, name, value, allowed, purpose):
-    for key in tuple(os.environ):
-        if key.casefold() in {"http_proxy", "https_proxy", "all_proxy", "no_proxy",
-                              "curl_ca_bundle", "ssl_cert_file", "ssl_cert_dir"}:
-            monkeypatch.delenv(key)
-    if name:
-        monkeypatch.setenv(name, value)
-    private_proof(monkeypatch, tmp_path)
-    monkeypatch.setattr(D, "_guard_base", lambda: tmp_path)
-    commands, dispatches = [], []
-
-    def command(argv, **kwargs):
-        assert argv[0] == "gh"
-        commands.append(tuple(argv))
-        return "true"
-
-    monkeypatch.setattr(D, "_run", command)
-    monkeypatch.setattr(E, "_post_webhook", lambda *args: dispatches.append("webhook") or True)
-
-    def reminder(*args, **kwargs):
-        dispatches.append("reminder")
-        return type("Receipt", (), {"returncode": 0, "stdout": json.dumps({
-            "ok": True, "api_version": "1.0.0", "schema_version": 1,
-            "item": {"id": "synthetic-item", "state": "pending"},
-        })})()
-
-    monkeypatch.setattr(B.subprocess, "run", reminder)
-    target = tmp_path / "new" / ("state.json" if purpose == "escalation" else "support.db")
-
-    def invoke():
-        if purpose == "escalation":
-            return E.escalate("Synthetic question", trigger="low_confidence",
-                              webhook="synthetic", state_path=str(target), now=20000)
-        return B._call("add", [], db=str(target))
-
-    if allowed:
-        invoke()
-        assert dispatches == ["webhook" if purpose == "escalation" else "reminder"]
-        assert commands
-    else:
-        with pytest.raises((D.DataBoundaryError, B.ReminderError), match="HTTPS"):
-            invoke()
-        assert not dispatches and not commands and not target.parent.exists()
 
 
 def delivery_case(tmp_path, monkeypatch, kind):

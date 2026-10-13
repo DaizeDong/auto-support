@@ -4,6 +4,9 @@ All notable changes to this project are documented here (Keep a Changelog style)
 
 ## [Unreleased]
 
+### Removed
+- Runtime PRIVATE proof. `runtime_data.py` no longer runs Git or `gh`: the live visibility query, Guards `prove_private_companion`, `storage_contract.authorize_artifact_write` admission, ignore-status and HEAD checks are gone. Writes resolve the companion, refuse destinations outside a Git worktree or inside the tool tree, and still reject links, hard links and unsafe components; there is no in-repo fallback. Commit-time hooks and CI keep enforcing PRIVATE publication. Proof-only tests and fixtures were removed.
+
 ### Fixed
 - The live PRIVATE visibility check no longer depends on which gh account is active: it asks through the pinned guards kit's `query_github_visibility`, which tries the owner's stored account, every other stored account, then gh's default, and never switches the active account. Before, an active account that could not see the companion made every proof fail closed. Only PRIVATE is accepted.
 

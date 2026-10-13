@@ -35,52 +35,14 @@ def hook_event(tool_name, tool_input, **fields):
     return fixtures.hook_event(tool_name, tool_input, **fields)
 
 
-def legacy_visibility_seam(monkeypatch):
-    """Keep the process-level `gh api ... --jq .private` seam these synthetic transports answer.
+def companion_worktree(monkeypatch, root):
+    """Make ``root`` a synthetic companion worktree for the path-only runtime checks.
 
-    The live answer itself comes from the guards kit with any logged-in gh account; that path runs
-    against a synthetic gh in test_visibility_any_gh_account.py."""
-    import subprocess
-    import runtime_data
-
-    def legacy(repository):
-        result = subprocess.run(["gh", "api", "--hostname", "github.com", "repos/" + repository,
-                                 "--jq", ".private"], capture_output=True, text=True, encoding="utf-8",
-                                timeout=20)
-        if result.returncode:
-            raise runtime_data.DataBoundaryError("Cannot verify private output: command returned an error")
-        return result.stdout.strip()
-    monkeypatch.setattr(runtime_data, "_github_private", legacy)
-
-
-def private_proof(monkeypatch, root):
-    """Receipt/path tests inject the supported proof API independently of transport."""
-    from types import SimpleNamespace
-    from test_review_acceptance_a import fixtures
-    import runtime_data
-    boundary = SimpleNamespace(
-        prove_private_companion=lambda path: SimpleNamespace(**fixtures.public_proof_case(root)),
-        read_private_companion_git=lambda proof, *args: SimpleNamespace(
-            returncode=1 if args[0] == "check-ignore" else 0, stdout="synthetic-head"))
-    monkeypatch.setattr(runtime_data, "_authorize_state", lambda target, root: None)
-    monkeypatch.setattr(runtime_data, "_boundary_module", lambda: boundary)
-    legacy_visibility_seam(monkeypatch)
-    return boundary
-
-
-def actual_private_proof(monkeypatch, generated_root):
-    """Integration tests use the selected public API with a generated receipt."""
-    import runtime_data
-    from types import SimpleNamespace
-    from test_review_acceptance_a import fixtures
-    monkeypatch.setattr(runtime_data, "_authorize_state", lambda target, root: None)
-    boundary = runtime_data._boundary_module()
-    visibility = fixtures.visibility_receipt(generated_root)
-    monkeypatch.setattr(runtime_data, "_boundary_module", lambda: SimpleNamespace(
-        prove_private_companion=lambda path: boundary.prove_private_companion(path, visibility),
-        read_private_companion_git=boundary.read_private_companion_git))
-    legacy_visibility_seam(monkeypatch)
-    return boundary
+    Runtime admission starts no process and checks no visibility; it only needs the
+    destination inside a Git worktree outside the tool tree. A bare ``.git`` marker
+    directory is enough for that filesystem check."""
+    from pathlib import Path
+    (Path(root) / ".git").mkdir(parents=True, exist_ok=True)
 
 
 @pytest.fixture(autouse=True)

@@ -24,8 +24,7 @@ establish provenance, while interpretation quality still needs independent evalu
 
 A request to escalate is not a send receipt. Confirmed relay success starts cooldown; an uncertain
 response retains private reconciliation state so a retry cannot silently duplicate a delivery.
-The state belongs in a PRIVATE versioned companion, and storage prerequisites are checked before
-dispatch. Storage admission requires a unique source-owned artifact declaration. Configuration
+The state belongs in a PRIVATE versioned companion, and its path is checked before dispatch. Configuration
 and runtime discovery select the same companion, keeping policy inspection and output aligned
 when a higher-priority selector is set. The reminder bridge requires an explicitly initialized
 scheduler database.

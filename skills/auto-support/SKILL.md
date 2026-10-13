@@ -87,7 +87,7 @@ successful JSON receipt. `DRAFT READY` covers draft configuration, not persisten
 4. **Escalation is the only fallback.** When blocked/unsure, return a neutral line; request founder
    review without claiming a message was sent. Keep internal refusal reasons out of public replies.
 5. **Redact detected secrets and PII before persistence.** Retain incident hashes and timestamps
-   in a verified PRIVATE versioned companion. Config secrets remain excluded from Git.
+   in the PRIVATE versioned companion. Config secrets remain excluded from Git.
 6. **Read-only retrieval.** Delivery uses only the separately configured and authorized relay
    capability described in [Discord integration](reference/discord.md).
 

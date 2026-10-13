@@ -1,11 +1,11 @@
-"""Private output proofs using synthetic Git/visibility responses at the I/O seam."""
+"""Path-only runtime output admission inside a synthetic companion worktree."""
 from pathlib import Path
 import os
 
 import pytest
 
 import runtime_data as D
-from conftest import private_proof
+from conftest import companion_worktree
 from test_review_acceptance_a import fixtures
 
 
@@ -13,28 +13,11 @@ from test_review_acceptance_a import fixtures
 def private(tmp_path, monkeypatch):
     root = tmp_path / "synthetic-companion"
     root.mkdir()
-    private_proof(monkeypatch, root)
+    companion_worktree(monkeypatch, root)
     tool = tmp_path / "synthetic-tool"
     tool.mkdir()
     monkeypatch.setattr(D, "REPO_ROOT", tool)
     monkeypatch.setattr(D, "_guard_base", lambda: root)
-    def command(argv, **kwargs):
-        if argv[0] == "git":
-            if "rev-parse" in argv:
-                return str(root)
-            if argv[3:] == ["remote"]:
-                return "origin"
-            if "--get-regexp" in argv:
-                return ""
-            if argv[3:] == ["config", "--null", "--list"]:
-                return ""
-            if argv[3:5] == ["remote", "get-url"]:
-                return "https://github.com/example-owner/example-config.git"
-            pytest.fail("unexpected Git command")
-        if argv[0] == "gh":
-            return "true"
-        pytest.fail("unexpected command")
-    monkeypatch.setattr(D, "_run", command)
     return root
 
 
@@ -55,13 +38,22 @@ def test_absolute_outside_target_is_rejected(private):
         D.state_path(private.parent / "outside.json")
 
 
-@pytest.mark.parametrize("visibility", ["false", "null", "", "PRIVATE"])
-def test_unknown_or_public_visibility_rejects_before_write(private, monkeypatch, visibility):
-    original = D._run
-    monkeypatch.setattr(D, "_run", lambda args, **kwargs: visibility if args[0] == "gh" else original(args, **kwargs))
-    with pytest.raises(D.DataBoundaryError, match="visibility"):
+def test_output_outside_any_git_worktree_is_rejected(tmp_path, monkeypatch):
+    plain = tmp_path / "plain-directory"
+    plain.mkdir()
+    monkeypatch.setattr(D, "REPO_ROOT", tmp_path / "synthetic-tool")
+    monkeypatch.setattr(D, "_guard_base", lambda: plain)
+    with pytest.raises(D.DataBoundaryError, match="Git worktree"):
         D.state_path("state.json")
-    assert not (private / "state.json").exists()
+    assert not (plain / "state.json").exists()
+
+
+def test_runtime_checks_start_no_process(private, monkeypatch):
+    import subprocess
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: pytest.fail("runtime check started a process"))
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: pytest.fail("runtime check started a process"))
+    assert D.state_path("state.json") == private / "state.json"
+    assert D.private_file_path(private / "support.db", sidecars=("-wal",)) == private / "support.db"
 
 
 def test_tool_repository_never_qualifies_as_companion(private, monkeypatch):
@@ -78,14 +70,9 @@ def test_explicit_missing_config_does_not_select_default(tmp_path, monkeypatch):
         D._guard_base()
 
 
-def test_nested_repository_cannot_capture_output(private, monkeypatch):
+def test_nested_repository_cannot_capture_output(private):
     nested = private / "nested"
-    nested.mkdir()
-    from types import SimpleNamespace
-    from test_review_acceptance_a import fixtures
-    boundary = private_proof(monkeypatch, private)
-    boundary.prove_private_companion = lambda path: SimpleNamespace(**fixtures.public_proof_case(
-        nested if path == nested else private))
+    (nested / ".git").mkdir(parents=True)
     with pytest.raises(D.DataBoundaryError, match="repository boundary"):
         D.state_path("nested/state.json")
 
@@ -93,7 +80,7 @@ def test_nested_repository_cannot_capture_output(private, monkeypatch):
 def test_database_and_sidecars_are_verified_without_creation(private):
     target = private / "support.db"
     assert D.private_file_path(target, sidecars=("-wal", "-shm", "-journal")) == target
-    assert list(private.iterdir()) == []
+    assert [p.name for p in private.iterdir()] == [".git"]
 
 
 @pytest.mark.parametrize("suffix", ["", "-wal", "-shm", "-journal"])
@@ -113,25 +100,18 @@ def test_database_rejects_unsafe_components(private, relative):
         D.private_file_path(private / relative)
 
 
-@pytest.mark.parametrize("suffix,fault", fixtures.escalation_endpoint_cases())
-def test_escalation_rejects_unversioned_or_aliased_write_endpoints(private, monkeypatch, suffix, fault):
-    from types import SimpleNamespace
+@pytest.mark.parametrize("suffix", fixtures.escalation_endpoint_cases())
+def test_escalation_rejects_aliased_write_endpoints(private, monkeypatch, suffix):
     import escalate as E
 
     target = private / "state.json"
     endpoint = target.with_name(target.name + suffix)
-    boundary = private_proof(monkeypatch, private)
-    if fault == "ignored":
-        boundary.read_private_companion_git = lambda proof, *args: SimpleNamespace(
-            returncode=int(args[-1] != endpoint.name) if args[0] == "check-ignore" else 0,
-            stdout="synthetic-head")
-    else:
-        outside = private.parent / "synthetic-state-peer"
-        outside.write_text(fixtures.FILES["escalation_state.json.example"], encoding="utf-8")
-        os.link(outside, endpoint)
+    outside = private.parent / "synthetic-state-peer"
+    outside.write_text(fixtures.FILES["escalation_state.json.example"], encoding="utf-8")
+    os.link(outside, endpoint)
     dispatched = []
     monkeypatch.setattr(E, "_post_webhook", lambda *args: dispatched.append(True))
-    with pytest.raises(D.DataBoundaryError, match="ignored|hard link"):
+    with pytest.raises(D.DataBoundaryError, match="hard link"):
         E.escalate("Synthetic question", trigger="low_confidence", webhook="synthetic",
                    state_path=str(target))
     assert not dispatched

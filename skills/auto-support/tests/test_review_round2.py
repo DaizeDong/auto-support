@@ -9,32 +9,16 @@ import answer_pipeline as AP
 import egress_dlp as E
 import grounding as GR
 import reminder_bridge as RB
-import runtime_data as D
-from conftest import private_proof
+from conftest import companion_worktree
 
 
 @pytest.fixture(autouse=True)
 def private_receipt_fixture(tmp_path, monkeypatch):
-    """Receipt tests use synthetic PRIVATE proof before their transport callbacks."""
+    """Receipt tests run inside a synthetic companion worktree."""
     root = tmp_path / "synthetic-companion"
     root.mkdir()
-    private_proof(monkeypatch, root)
+    companion_worktree(monkeypatch, root)
     monkeypatch.setenv("SCHEDULE_DB_PATH", str(root / "support.db"))
-    def command(argv, **kwargs):
-        if argv[0] == "gh":
-            return "true"
-        if "rev-parse" in argv:
-            return str(root)
-        if argv[3:] == ["remote"]:
-            return "origin"
-        if "--get-regexp" in argv:
-            return ""
-        if argv[3:] == ["config", "--null", "--list"]:
-            return ""
-        if argv[3:5] == ["remote", "get-url"]:
-            return "https://github.com/example-owner/example-config.git"
-        pytest.fail("unexpected private-boundary command")
-    monkeypatch.setattr(D, "_run", command)
 
 
 def answer():

@@ -137,10 +137,10 @@ Scope interpretation depends on the configured model when large prose chapters a
 deterministic test responses do not establish that model's effectiveness. Discord listeners,
 secret provisioning, host hooks and live delivery
 need deployment validation; a passing unit suite does not enable auto-post. The reminder bridge
-requires `schedule-reminder`. Runtime writes require Git and authenticated `gh` to prove PRIVATE
-visibility for every configured remote's effective fetch and push URLs, including URL rewrites.
-Default and branch push selections must refer to verified named remotes. PUBLIC or unknown
-destinations block writes, with no fallback into the tool repository. No OS sandbox is installed.
+requires `schedule-reminder`. Runtime writes resolve the PRIVATE companion and refuse any
+destination outside a Git worktree or inside the tool repository, with no in-repo fallback.
+These are path checks only; PRIVATE publication is enforced by commit-time hooks and CI.
+No OS sandbox is installed.
 
 ## Languages
 

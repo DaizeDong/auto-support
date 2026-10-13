@@ -10,7 +10,6 @@ import pytest
 import answer_pipeline as AP
 import reminder_bridge as RB
 import runtime_data as D
-from conftest import private_proof
 from test_first_run_contract import run_script, SCRIPTS
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -37,29 +36,10 @@ def test_unusable_instruction_never_becomes_trusted_partial_answer(tmp_path, kin
     assert "\ufffd" not in result.response_text
 
 
-@pytest.mark.parametrize("visibility", ["false", "null", "", "unknown-origin"])
-def test_reminder_rejects_unproven_database_before_invocation(tmp_path, monkeypatch, visibility):
+def test_reminder_rejects_database_outside_a_companion_worktree(tmp_path, monkeypatch):
     root = tmp_path / "companion"
     root.mkdir()
-    private_proof(monkeypatch, root)
     calls = []
-
-    def command(argv, **kwargs):
-        if argv[0] == "git":
-            if "rev-parse" in argv:
-                return str(root)
-            if visibility == "unknown-origin":
-                raise D.DataBoundaryError("origin missing")
-            if argv[3:] == ["remote"]:
-                return "origin"
-            if "--get-regexp" in argv:
-                return ""
-            if argv[3:] == ["config", "--null", "--list"]:
-                return ""
-            if argv[3:5] == ["remote", "get-url"]:
-                return "https://github.com/example-owner/example-config.git"
-            pytest.fail("unexpected private-boundary command")
-        return visibility
 
     def invoke(*args, **kwargs):
         calls.append(args)
@@ -67,7 +47,7 @@ def test_reminder_rejects_unproven_database_before_invocation(tmp_path, monkeypa
             "ok": True, "schema_version": 1, "api_version": "1.0.0",
             "item": {"id": "synthetic-turn", "state": "pending"}}), stderr="")
 
-    monkeypatch.setattr(D, "_run", command)
+    monkeypatch.setattr(D, "REPO_ROOT", tmp_path / "synthetic-tool")
     monkeypatch.setattr(RB.subprocess, "run", invoke)
     with pytest.raises(RB.ReminderError):
         RB.record_turn("synthetic-message", channel="synthetic", user_id="synthetic", intent="unclear",

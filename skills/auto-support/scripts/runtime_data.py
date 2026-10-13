@@ -1,7 +1,9 @@
-"""Verify escalation output belongs to a separate PRIVATE GitHub companion.
+"""Resolve escalation output inside the separate PRIVATE companion.
 
-Discovery is provided by the pinned guards kit. This adapter adds live visibility
-proof and target containment; missing proof is an error before any write or send.
+Discovery is provided by the pinned guards kit. This adapter adds path-only target
+containment: the destination must be inside a Git worktree outside this tool tree.
+An unresolved companion is an error before any write or send; there is no in-repo
+fallback. Repository visibility is enforced at commit time, not at runtime.
 """
 from __future__ import annotations
 
@@ -10,53 +12,12 @@ import os
 from pathlib import Path
 import re
 import stat
-import subprocess
-import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 class DataBoundaryError(RuntimeError):
     pass
-
-
-_VISIBILITY_PREFIX = ["gh", "api", "--hostname", "github.com"]
-_VISIBILITY_SUFFIX = ["--jq", ".private"]
-
-
-def _run(argv, *, empty_ok=False):
-    if (len(argv) == 7 and list(argv[:4]) == _VISIBILITY_PREFIX and list(argv[5:]) == _VISIBILITY_SUFFIX
-            and isinstance(argv[4], str) and argv[4].startswith("repos/")):
-        return _github_private(argv[4][len("repos/"):])
-    try:
-        environment = dict(os.environ, GIT_OPTIONAL_LOCKS="0")
-        result = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", timeout=20,
-                                env=environment)
-    except (OSError, ValueError, UnicodeError, subprocess.TimeoutExpired) as exc:
-        raise DataBoundaryError("Cannot verify private output: command unavailable or failed") from exc
-    if empty_ok and result.returncode == 1 and not result.stdout and not result.stderr:
-        return ""
-    if result.returncode:
-        raise DataBoundaryError("Cannot verify private output: command returned an error")
-    return result.stdout.strip()
-
-
-def _github_private(repository):
-    """Live PRIVATE answer for OWNER/NAME, independent of the ACTIVE gh account.
-
-    A plain `gh api repos/OWNER/NAME` asks only with whichever account `gh auth switch` last
-    selected, so an active account that cannot see the companion failed every proof closed. The
-    pinned Guards kit asks with the owner's stored account, then every other stored account, then
-    gh's default, and refuses only when none can see it. Returns "true" only for PRIVATE."""
-    boundary = _boundary_module()
-    ask = getattr(boundary, "query_github_visibility", None)
-    if not callable(ask):
-        raise DataBoundaryError("Guards dependency lacks the account-independent visibility API")
-    try:
-        visibility = ask(repository)
-    except boundary.GitError as exc:
-        raise DataBoundaryError("Cannot verify private output: no gh credential can see the companion") from exc
-    return "true" if visibility == "PRIVATE" else "false"
 
 
 def _guard_base(*, companion=False, override=None, required=True):
@@ -89,72 +50,32 @@ def _guard_base(*, companion=False, override=None, required=True):
     return Path(result).resolve()
 
 
-def _boundary_module():
-    """Load only the selected kit's supported companion-proof API."""
-    path = REPO_ROOT / "guards/tools/data_boundary.py"
-    try:
-        for node in (path, *path.parents):
-            info = node.lstat()
-            if (stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400
-                    or stat.S_ISREG(info.st_mode) and info.st_nlink != 1):
-                raise DataBoundaryError("Guards dependency has an unproved filesystem alias")
-        spec = importlib.util.spec_from_file_location("_auto_support_companion_boundary", path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        if not all(callable(getattr(module, name, None)) for name in
-                   ("prove_private_companion", "read_private_companion_git")):
-            raise DataBoundaryError("Guards dependency lacks the supported companion-proof API")
-        return module
-    except (OSError, ValueError, ImportError, AttributeError, RuntimeError, TypeError) as exc:
-        raise DataBoundaryError("Cannot load companion proof; initialize the accepted guards kit") from exc
-
-
-def _verify_visibility_environment():
-    """The live gh query must use the standard HTTPS endpoint and trust settings."""
-    overrides = {"http_proxy", "https_proxy", "all_proxy", "curl_ca_bundle",
-                 "ssl_cert_file", "ssl_cert_dir"}
-    if any(name.casefold() in overrides for name in os.environ):
-        raise DataBoundaryError("Live visibility HTTPS transport has an unproved environment override")
-
-
 def _private_repo(path):
-    # Preserve the consumer's explicit refusal of ambient repository selectors.
-    administrative = {"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_CONFIG",
-                      "GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS"}
-    if any(name.upper() in administrative or name.upper().startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))
-           for name in os.environ):
-        raise DataBoundaryError("Clear Git administrative and command-config overrides before selecting private output")
+    """Return the Git worktree that will version ``path``; filesystem checks only.
+
+    No process starts and repository visibility is not checked at runtime: commit-time
+    hooks and CI enforce PRIVATE publication. The destination must sit inside a Git
+    worktree (the companion) that is neither this public tool tree nor one containing it.
+    """
+    path = Path(path).absolute()
+    for node in (path, *path.parents):
+        try:
+            info = node.lstat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+            raise DataBoundaryError("Runtime output cannot use filesystem aliases")
     existing = path
     while not existing.is_dir() and existing != existing.parent:
         existing = existing.parent
-    try:
-        boundary = _boundary_module()
-        proof = boundary.prove_private_companion(existing)
-        root = Path(proof.root).resolve()
-        if root.is_relative_to(REPO_ROOT) or REPO_ROOT.is_relative_to(root):
-            raise DataBoundaryError("Escalation data cannot reside in the tool repository")
-        if not path.resolve().is_relative_to(root):
-            raise DataBoundaryError("PRIVATE repository does not govern the selected output")
-        head = boundary.read_private_companion_git(proof, "rev-parse", "--verify", "HEAD")
-        if head.returncode != 0 or not head.stdout.strip():
-            raise DataBoundaryError("PRIVATE companion has no committed history")
-        relative = path.resolve().relative_to(root).as_posix()
-        ignored = boundary.read_private_companion_git(
-            proof, "check-ignore", "--no-index", "-q", "--", relative)
-        if ignored.returncode != 1:
-            raise DataBoundaryError("Runtime output is ignored or its version-control eligibility is unknown")
-        _verify_visibility_environment()
-        for repository in proof.repositories:
-            if _run(["gh", "api", "--hostname", "github.com", "repos/" + repository,
-                     "--jq", ".private"]) != "true":
-                raise DataBoundaryError("Companion is PUBLIC or live visibility is unknown")
-        current = boundary.prove_private_companion(existing)
-        if (current.root, current.repositories, current.signature) != (
-                proof.root, proof.repositories, proof.signature):
-            raise DataBoundaryError("Companion publication state changed during live visibility proof")
-        return root
-    except (OSError, ValueError, RuntimeError, TypeError, AttributeError) as exc:
-        raise DataBoundaryError("Cannot prove PRIVATE output: " + str(exc)) from exc
+    root = next((directory for directory in (existing, *existing.parents)
+                 if os.path.lexists(directory / ".git")), None)
+    if root is None:
+        raise DataBoundaryError("Runtime output requires a PRIVATE versioned companion (no Git worktree found)")
+    root = root.resolve()
+    if root.is_relative_to(REPO_ROOT) or REPO_ROOT.is_relative_to(root):
+        raise DataBoundaryError("Escalation data cannot reside in the tool repository")
+    return root
 
 
 def private_file_path(value, *, sidecars=()):
@@ -195,24 +116,6 @@ def private_file_path(value, *, sidecars=()):
     return target
 
 
-def _storage_api():
-    path = REPO_ROOT / 'guards/tools/storage_contract.py'
-    spec = importlib.util.spec_from_file_location('_auto_support_storage', path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-def _authorize_state(target, root):
-    try:
-        module = _storage_api()
-        for candidate in (target, Path(str(target) + '.lock'), Path(str(target) + '.tmp')):
-            module.authorize_artifact_write(REPO_ROOT, root, candidate.relative_to(root).as_posix())
-    except (OSError, ValueError, RuntimeError, AttributeError) as exc:
-        raise DataBoundaryError('Escalation output requires a source-owned versioned artifact declaration') from exc
-
-
 def state_path(value=None):
     base = _guard_base()
     if base.is_relative_to(REPO_ROOT):
@@ -232,6 +135,4 @@ def state_path(value=None):
     root = _private_repo(base)
     if _private_repo(target) != root:
         raise DataBoundaryError("State destination crosses a repository boundary")
-    target = private_file_path(target, sidecars=(".lock", ".tmp"))
-    _authorize_state(target, root)
-    return target
+    return private_file_path(target, sidecars=(".lock", ".tmp"))

@@ -63,21 +63,19 @@ including critical alerts. Check the delivery receipt and private state, reconci
 cooldown record, and remove the lock only when that inspection is complete. A nonzero
 exit status must never be treated as proof that nothing was delivered.
 
-State is resolved through `scripts/runtime_data.py` into a verified PRIVATE GitHub companion.
-Missing or unknown visibility stops before sending. Git HTTPS settings that can change
-routing, proxying, TLS trust or request contents are refused, including URL-scoped and
-repeated entries. Default settings, explicit TLS verification and a small set of performance
-settings are supported. Known HTTPS environment overrides also stop the visibility API
-proof, including when the Git remote uses SSH. Do not put state or private observations
+State is resolved through `scripts/runtime_data.py` into the PRIVATE companion worktree.
+An unresolved companion, a destination outside a Git worktree or inside the tool tree, links
+and hard links stop before sending. These are path checks only; no Git or `gh` process runs.
+Do not put state or private observations
 in the public tool repository. The draft pipeline requests escalation but never invokes this
 transport automatically; sending requires authorization from the surrounding workflow.
 
 ## Reminder persistence
 
 `reminder_bridge.py` records turns through the schedule-reminder CLI. Success requires an
-absolute database selected with `--db` or `SCHEDULE_DB_PATH`, and a live PRIVATE repository
-proof before each writing invocation. The database and its sidecars must stay in that repository;
-hard links and unknown storage are rejected before the CLI runs. Success also requires an
+absolute database selected with `--db` or `SCHEDULE_DB_PATH`, checked against the companion
+worktree before each writing invocation. The database and its sidecars must stay in that worktree;
+hard links and paths outside it are rejected before the CLI runs. Success also requires an
 `api_version` in 1.x, positive integer `schema_version`, exact `ok: true`, and an item with a
 nonempty ID and recognized state. A transition must confirm the same ID and requested state.
 Malformed receipts, incompatible versions and invocation failures exit nonzero; a zero process

@@ -67,9 +67,11 @@ claude.json
 SECRETS_README = """\
 # secrets/ — Mode B (gitignored)
 
-DPAPI ciphertext only: Discord bot token, relay webhook, any LLM key. These are in the GitHub
-Secret-Scanning Partnership and get auto-revoked even in private repos, so they are **gitignored**
-(see ../.gitignore) and never enter git. Draft mode does not need these credentials.
+Discord bot token, relay webhook, any LLM key. Keep the values in an external credential store
+and inject them at runtime; a file here may only be machine-bound ciphertext or a projection the
+store regenerates, never a hand-edited plaintext copy. These keys are in the GitHub Secret-Scanning
+Partnership and get auto-revoked even in private repos, so this directory is **gitignored**
+(see ../.gitignore) and never enters git. Draft mode does not need these credentials.
 A delivery integration must explicitly provision and resolve the `@secret:...` pointers;
 no capture or deployment helper is shipped by this initializer. Back up secrets out-of-band.
 """

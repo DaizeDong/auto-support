@@ -64,7 +64,7 @@ hashes bind the result to the document; they do not prove the model's judgment c
 Passing all four yields a **local draft** with citations. Deliver that draft and explain any
 missing evidence. The script does not send messages or install a Discord listener. Treat a JSON
 escalation decision as a request for a separately authorized relay; claim delivery only from its
-receipt. A passing offline test suite alone does not enable auto-post.
+receipt. Only deployment validation enables auto-post.
 
 State and escalation use the existing integrations:
 - `scripts/reminder_bridge.py` -> `schedule-reminder` (source=`auto-support`, ext `x_auto_support_*`,
@@ -97,4 +97,4 @@ This `SKILL.md` is the only always-loaded file. Load one shard on demand:
 `reference/security-model.md` (the four gates + why guards live outside the prompt) ·
 `reference/discord.md` (min-intent listener, trigger gate, human-review reply) ·
 `reference/escalation.md` (relay + dedup) · `reference/config-schema.md` (per-product policy) ·
-`reference/redteam.md` (canary gate, AFR=100% / SCR, run before any auto-post).
+`reference/redteam.md` (canary checks, AFR=100% / SCR, run before any auto-post).

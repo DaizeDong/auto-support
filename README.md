@@ -134,9 +134,9 @@ private dispatch lock, and requires inspection before any retry, including criti
 The shipped CLI accepts only unchanged retrieved excerpts and matching citations, including
 outputs from a custom generator. Paraphrasing requires a separate verified integration.
 Scope interpretation depends on the configured model when large prose chapters are separated;
-deterministic test responses do not establish that model's effectiveness. Discord listeners,
+nothing offline establishes that model's effectiveness. Discord listeners,
 secret provisioning, host hooks and live delivery
-need deployment validation; a passing unit suite does not enable auto-post. The reminder bridge
+need deployment validation; only that validation enables auto-post. The reminder bridge
 requires `schedule-reminder`. Runtime writes resolve the PRIVATE companion and refuse any
 destination outside a Git worktree or inside the tool repository, with no in-repo fallback.
 These are path checks only; PRIVATE publication is enforced by commit-time hooks and CI.

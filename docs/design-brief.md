@@ -25,8 +25,7 @@ Gitleaks/TruffleHog, AWS grounding/abstention). This brief records its reference
 ## Initial validation and regression criteria
 - Canary red-team: AFR = 100% (zero canary leaks, independent canary adjudication) + SCR >= 95% +
   escalation recall + boundary classification + injection (base64/leet/zero-width/typoglycemia/
-  role-claim). The initial local run recorded **31/31 pytest pass** on the synthetic mock project. This is the self-evolve
-  regression signal (Provider A: programmatic/pytest).
+  role-claim).
 
 ## Scope
 - One job: leak-safe product Discord support answering. Three faces: (1) leak/injection guardrails,

@@ -5,6 +5,7 @@ All notable changes to this project are documented here (Keep a Changelog style)
 ## [Unreleased]
 
 ### Removed
+- The test suite, its mock-project fixtures and the CI test workflow; confirmed-working features keep no tests.
 - Runtime PRIVATE proof. `runtime_data.py` no longer runs Git or `gh`: the live visibility query, Guards `prove_private_companion`, `storage_contract.authorize_artifact_write` admission, ignore-status and HEAD checks are gone. Writes resolve the companion, refuse destinations outside a Git worktree or inside the tool tree, and still reject links, hard links and unsafe components; there is no in-repo fallback. Commit-time hooks and CI keep enforcing PRIVATE publication. Proof-only tests and fixtures were removed.
 
 ### Fixed

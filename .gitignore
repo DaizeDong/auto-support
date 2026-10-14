@@ -16,13 +16,10 @@ desktop.ini
 *~
 
 # Secrets — never commit a real .env anywhere in the tree (defensive: a real .env added at repo
-# root or in a product subdir must not be committed). The mock red-team fixtures hold ONLY fake
-# _CANARY strings (no real secret) and are intentionally tracked, so re-include them.
+# root or in a product subdir must not be committed).
 .env
 **/.env
 **/.env.*
-!**/tests/fixtures/**/.env
-!**/tests/fixtures/**/.env.*
 
 # Live Claude state (never commit)
 .claude.json
@@ -32,7 +29,7 @@ claude.json
 **/.claude/settings.json
 
 # Secrets gate (config-spec E6 / Mode B) — config-bearing skill: never commit user secrets, keep
-# only templates. Root-anchored secrets/* leaves the tracked red-team fixtures under tests/ alone.
+# only templates.
 secrets/*
 !secrets/README.md
 !secrets/.gitkeep
@@ -52,7 +49,7 @@ metrics/**/*.jsonl
 .sie/
 
 # Build / iteration meta — per-round progress logs and scratch artifacts are NOT skill content
-# (the skill itself ships SKILL.md/scripts/reference/tests/docs). Keep them local, never commit.
+# (the skill itself ships SKILL.md/scripts/reference/docs). Keep them local, never commit.
 PROGRESS.md
 scratchpad/
 *.log

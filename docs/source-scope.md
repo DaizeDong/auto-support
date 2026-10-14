@@ -39,9 +39,3 @@ endpoint evidence records. These checks establish provenance and structural vali
 They do not prove that a model understood the document correctly or that a declared
 independence is semantically true. Literal citation fidelity also does not prove procedure
 completeness. Independent semantic effectiveness checks remain necessary.
-
-The business tests intercept only the model transport with interpretations authored from
-synthetic generator recipes. Production parsing, binding, closure, extraction and answer
-gates still execute. Missing synthetic responses are explicit test transport failures;
-they are not silently treated as valid independent sections. Passing those tests proves
-the integration behavior under those responses, not a real model's reliability.

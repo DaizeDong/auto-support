@@ -8,6 +8,7 @@ All notable changes to this project are documented here (Keep a Changelog style)
 - The guards and style submodules are gone. Companion discovery imports the installed `fleet_guards` package (`companion_resolver(source_root=...)`); a missing package is an error that names `pip install -e "$(git config --get fleet.guards)"`. The tracked `.githooks/` shims run the local fleet-guards and fleet-style checkouts named by `git config fleet.guards` and `fleet.style`, and the gate and fleet-sync workflows were removed.
 
 ### Removed
+- The `AUTO_SUPPORT_STATE_DIR` and `AUTO_SUPPORT_CONFIG_DIR` aliases. State lives at `escalation_state.json` in the selected data directory unless `--state-path` names another file there, and the companion is selected only by `AUTO_SUPPORT_DATA_DIR`, `AUTO_SUPPORT_CONFIG` or the sibling.
 - The test suite, its mock-project fixtures and the CI test workflow; confirmed-working features keep no tests.
 - Runtime PRIVATE proof. `runtime_data.py` no longer runs Git or `gh`: the live visibility query, Guards `prove_private_companion`, `storage_contract.authorize_artifact_write` admission, ignore-status and HEAD checks are gone. Writes resolve the companion, refuse destinations outside a Git worktree or inside the tool tree, and still reject links, hard links and unsafe components; there is no in-repo fallback. Commit-time hooks and CI keep enforcing PRIVATE publication. Proof-only tests and fixtures were removed.
 

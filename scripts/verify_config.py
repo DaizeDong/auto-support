@@ -5,7 +5,7 @@ schema, and prints PASS/FAIL per check naming exactly what is missing. Exit 0 = 
 2 = usage error.
 
 Discovery is shared with runtime_data and the fleet_guards package: doctor --config-dir, then
-AUTO_SUPPORT_DATA_DIR, AUTO_SUPPORT_CONFIG, AUTO_SUPPORT_CONFIG_DIR, then the proven sibling
+AUTO_SUPPORT_DATA_DIR, AUTO_SUPPORT_CONFIG, then the proven sibling
 auto-support-config. There is no home-directory location. Invalid explicit selections fail.
 The initializer's --out is a separate deliberate creation destination.
 Product selection: $AUTO_SUPPORT_POLICY (path to products/<slug>/policy.json) wins; else the sole

@@ -7,7 +7,7 @@ repository (Mode B). The public tool ships an empty initializer and synthetic te
 ## Discovery and selection (E2)
 
 The doctor uses `--config-dir`, then the shared runtime order: `AUTO_SUPPORT_DATA_DIR`,
-`AUTO_SUPPORT_CONFIG`, `AUTO_SUPPORT_CONFIG_DIR`, then a proven sibling companion. There is no
+`AUTO_SUPPORT_CONFIG`, then a proven sibling companion. There is no
 home-directory location. A selected `data` child resolves
 to its companion root for settings. An explicit invalid directory
 fails; it does not select a different config. Product selection uses `--policy`, then
@@ -28,7 +28,7 @@ Shell reads accept only the small literal grammar in the hook, with no expansion
 
 Real escalation state uses the fleet_guards package's companion discovery. Set `AUTO_SUPPORT_CONFIG`
 to the private companion or `AUTO_SUPPORT_DATA_DIR` to its existing data directory.
-`AUTO_SUPPORT_STATE_DIR` and `--state-path` may only select a location within that data
+`--state-path` may only select a location within that data
 directory. An unresolved companion fails before dispatch; there is no unversioned or in-repo
 fallback. The runtime checks are path-only and start no Git or `gh` process: the destination
 must sit inside a Git worktree that is not this tool tree, with no parent traversal, `.git`
@@ -108,7 +108,7 @@ back up credentials separately. Never copy production records into public exampl
 
 ## Switching products (E5)
 
-Clear `AUTO_SUPPORT_DATA_DIR` and stale `AUTO_SUPPORT_CONFIG_DIR` before switching.
+Clear `AUTO_SUPPORT_DATA_DIR` before switching.
 Point `AUTO_SUPPORT_CONFIG` at the new companion for doctor and state discovery, and
 `AUTO_SUPPORT_POLICY` at its selected product policy for CLI and hook. Run the doctor against
 each configuration after filling its root. `--root`, when supplied to the draft CLI, must match

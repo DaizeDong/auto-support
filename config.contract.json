@@ -14,14 +14,12 @@
     "discovery_document": "CONFIG.md",
     "environment": "AUTO_SUPPORT_CONFIG",
     "aliases": [
-      "AUTO_SUPPORT_DATA_DIR",
-      "AUTO_SUPPORT_CONFIG_DIR"
+      "AUTO_SUPPORT_DATA_DIR"
     ],
     "precedence": [
       "--config-dir",
       "AUTO_SUPPORT_DATA_DIR",
       "AUTO_SUPPORT_CONFIG",
-      "AUTO_SUPPORT_CONFIG_DIR",
       "proven sibling companion"
     ],
     "required_fields": [

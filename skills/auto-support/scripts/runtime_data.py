@@ -25,7 +25,7 @@ def _guard_base(*, companion=False, override=None, required=True):
         if not str(override).strip() or not selected.is_dir():
             raise DataBoundaryError("Explicit config directory must exist")
         return selected.resolve() if companion else (selected / "data" if (selected / "data").is_dir() else selected).resolve()
-    for name in ("AUTO_SUPPORT_DATA_DIR", "AUTO_SUPPORT_CONFIG", "AUTO_SUPPORT_CONFIG_DIR"):
+    for name in ("AUTO_SUPPORT_DATA_DIR", "AUTO_SUPPORT_CONFIG"):
         value = os.environ.get(name)
         if value:
             if not Path(value).expanduser().is_dir():
@@ -116,8 +116,7 @@ def state_path(value=None):
     if base.is_relative_to(REPO_ROOT):
         raise DataBoundaryError("Output cannot be inside the public tool repository")
     if value is None:
-        legacy = os.environ.get("AUTO_SUPPORT_STATE_DIR")
-        value = Path(legacy) / "escalation_state.json" if legacy else "escalation_state.json"
+        value = "escalation_state.json"
     raw = str(value).replace("\\", "/")
     if any(part.lower() in ("..", ".git") or part.endswith((" ", ".")) for part in raw.split("/")):
         raise DataBoundaryError("State path contains unsafe components")

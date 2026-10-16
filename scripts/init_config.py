@@ -11,7 +11,7 @@ output. Self-contained (E5): the committed policy.json carries the placeholder `
 Discord delivery and secret provisioning are separate deployment integrations.
 
 Discovery is shared with runtime_data and the fleet_guards package: doctor --config-dir, then
-AUTO_SUPPORT_DATA_DIR, AUTO_SUPPORT_CONFIG, AUTO_SUPPORT_CONFIG_DIR, then the proven sibling
+AUTO_SUPPORT_DATA_DIR, AUTO_SUPPORT_CONFIG, then the proven sibling
 auto-support-config. There is no home-directory location. Invalid explicit selections fail.
 The initializer's --out is a separate deliberate creation destination.
 Within the resolved config dir, the skill consumes ONE product via $AUTO_SUPPORT_POLICY pointing at
@@ -182,7 +182,7 @@ def main():
     registry["products"] = sorted(set(registry["products"]) | {slug})
 
     print("Init auto-support-config (Mode B) at %s" % out)
-    print("Discovery env var: %s  (alias %s_DIR, then the proven sibling companion)" % (ENV_VAR, ENV_VAR))
+    print("Discovery env var: %s  (then the proven sibling companion)" % ENV_VAR)
     print("Product: %s" % slug)
 
     def j(obj):

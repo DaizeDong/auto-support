@@ -25,12 +25,6 @@ def _guard_base(*, companion=False, override=None, required=True):
         if not str(override).strip() or not selected.is_dir():
             raise DataBoundaryError("Explicit config directory must exist")
         return selected.resolve() if companion else (selected / "data" if (selected / "data").is_dir() else selected).resolve()
-    for name in ("AUTO_SUPPORT_DATA_DIR", "AUTO_SUPPORT_CONFIG"):
-        value = os.environ.get(name)
-        if value:
-            if not Path(value).expanduser().is_dir():
-                raise DataBoundaryError(name + " must name an existing private directory")
-            break
     try:
         from fleet_guards.runtime import companion_resolver
     except ImportError as exc:

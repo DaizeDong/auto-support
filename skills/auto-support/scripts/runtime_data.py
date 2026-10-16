@@ -38,7 +38,7 @@ def _guard_base(*, companion=False, override=None, required=True):
     resolver = companion_resolver(source_root=REPO_ROOT)
     try:
         result = (resolver.resolve_companion_root("auto-support") if companion else
-                  resolver.resolve_data_dir("auto-support", create=False))
+                  resolver.resolve_data_dir("auto-support"))
     except (OSError, ValueError, RuntimeError) as exc:
         raise DataBoundaryError("Cannot resolve the private companion; check AUTO_SUPPORT_CONFIG") from exc
     if result is None and not required:

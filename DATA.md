@@ -30,21 +30,11 @@ The exact companion `LICENSE` copy is a rebuildable reference.
 
 The exact `runbooks/incident-response.md` procedure remains core until a reviewed
 replacement covers its recovery duties and unresolved incident and delivery
-outcomes are closed. Its reference to an older rotation procedure does not make
-that rotation chain valid for the current integration.
+outcomes are closed.
 
-Legacy `products/*/escalation.json` files are retired only after all their settings
-are preserved in the matching policy and external consumers are checked. The
-draft pipeline reads root, allow/deny and confidence policy fields. The shipped escalation
+The draft pipeline reads root, allow/deny and confidence policy fields. The shipped escalation
 dispatcher uses its own critical-topic constant, CLI dedup arguments and CLI/environment relay
-selection. It does not load policy escalation fields; an external adapter must map those explicitly. The exact earlier
-`scripts/apply.py`, `scripts/capture-key.ps1` and `scripts/verify.sh` helpers,
-`runbooks/new-machine.md`, `runbooks/secret-rotation.md`, `CHANGELOG.md` and
-`PHILOSOPHY.md` are declared retired. They describe the earlier deployment flow;
-the settings composer does not use the current product-root resolver and replaces
-permission lists. Removal remains pending an explicit inactive selection and
-replacement of remaining recovery references. Retiring a helper does not retire
-credentials, their backups or unresolved delivery state.
+selection. It does not load policy escalation fields; an external adapter must map those explicitly.
 
 The operator incident runbook may append `metrics/<slug>/incidents.jsonl`, now declared
 as versioned core recovery data. Each record uses schema_version 1, incident_id, ts,

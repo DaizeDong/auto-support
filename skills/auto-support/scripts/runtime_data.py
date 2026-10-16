@@ -1,13 +1,12 @@
 """Resolve escalation output inside the separate PRIVATE companion.
 
-Discovery is provided by the pinned guards kit. This adapter adds path-only target
+Discovery is provided by the installed fleet_guards package. This adapter adds path-only target
 containment: the destination must be inside a Git worktree outside this tool tree.
 An unresolved companion is an error before any write or send; there is no in-repo
 fallback. Repository visibility is enforced at commit time, not at runtime.
 """
 from __future__ import annotations
 
-import importlib.util
 import os
 from pathlib import Path
 import re
@@ -21,9 +20,6 @@ class DataBoundaryError(RuntimeError):
 
 
 def _guard_base(*, companion=False, override=None, required=True):
-    path = REPO_ROOT / "guards/tools/datadir.py"
-    if not path.is_file():
-        raise DataBoundaryError("Missing guards kit; run git submodule update --init --recursive")
     if override is not None:
         selected = Path(override).expanduser()
         if not str(override).strip() or not selected.is_dir():
@@ -35,12 +31,14 @@ def _guard_base(*, companion=False, override=None, required=True):
             if not Path(value).expanduser().is_dir():
                 raise DataBoundaryError(name + " must name an existing private directory")
             break
-    spec = importlib.util.spec_from_file_location("_auto_support_datadir", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
     try:
-        result = (module.resolve_companion_root("auto-support") if companion else
-                  module.resolve_data_dir("auto-support", create=False))
+        from fleet_guards.runtime import companion_resolver
+    except ImportError as exc:
+        raise DataBoundaryError('fleet_guards is not installed; run: pip install -e "$(git config --get fleet.guards)"') from exc
+    resolver = companion_resolver(source_root=REPO_ROOT)
+    try:
+        result = (resolver.resolve_companion_root("auto-support") if companion else
+                  resolver.resolve_data_dir("auto-support", create=False))
     except (OSError, ValueError, RuntimeError) as exc:
         raise DataBoundaryError("Cannot resolve the private companion; check AUTO_SUPPORT_CONFIG") from exc
     if result is None and not required:
@@ -54,7 +52,7 @@ def _private_repo(path):
     """Return the Git worktree that will version ``path``; filesystem checks only.
 
     No process starts and repository visibility is not checked at runtime: commit-time
-    hooks and CI enforce PRIVATE publication. The destination must sit inside a Git
+    hooks enforce PRIVATE publication. The destination must sit inside a Git
     worktree (the companion) that is neither this public tool tree nor one containing it.
     """
     path = Path(path).absolute()

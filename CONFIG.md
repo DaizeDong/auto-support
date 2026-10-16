@@ -26,14 +26,14 @@ the selected root before and after resolving links. `Grep` and `Glob` require an
 `path`; directory searches are rejected if any reachable file is outside the public policy.
 Shell reads accept only the small literal grammar in the hook, with no expansions or pipelines.
 
-Real escalation state uses the pinned guard's companion discovery. Set `AUTO_SUPPORT_CONFIG`
+Real escalation state uses the fleet_guards package's companion discovery. Set `AUTO_SUPPORT_CONFIG`
 to the private companion or `AUTO_SUPPORT_DATA_DIR` to its existing data directory.
 `AUTO_SUPPORT_STATE_DIR` and `--state-path` may only select a location within that data
 directory. An unresolved companion fails before dispatch; there is no unversioned or in-repo
 fallback. The runtime checks are path-only and start no Git or `gh` process: the destination
 must sit inside a Git worktree that is not this tool tree, with no parent traversal, `.git`
 components, alternate streams, links or hard links. Repository visibility is not checked at
-runtime; the commit and push hooks and CI enforce PRIVATE publication of the companion.
+runtime; the commit and push hooks enforce PRIVATE publication of the companion.
 
 The optional reminder bridge requires `--db` or `SCHEDULE_DB_PATH` to select an absolute
 database path in the companion worktree. It checks the database and SQLite sidecars before

@@ -70,8 +70,14 @@ See [source scope](docs/source-scope.md).
 Or clone manually:
 
 ```bash
-git clone --recurse-submodules https://github.com/DaizeDong/auto-support.git ~/.claude/plugins/auto-support
+git clone https://github.com/DaizeDong/auto-support.git ~/.claude/plugins/auto-support
 ```
+
+Companion discovery comes from the `fleet_guards` package. Clone
+[fleet-guards](https://github.com/DaizeDong/fleet-guards), record it with
+`git config --global fleet.guards <checkout>`, then run `pip install -e "$(git config --get fleet.guards)"`.
+Contributors also run `git config core.hooksPath .githooks` so commits and pushes go through the
+privacy hooks.
 
 ## Quick start
 
@@ -139,7 +145,7 @@ secret provisioning, host hooks and live delivery
 need deployment validation; only that validation enables auto-post. The reminder bridge
 requires `schedule-reminder`. Runtime writes resolve the PRIVATE companion and refuse any
 destination outside a Git worktree or inside the tool repository, with no in-repo fallback.
-These are path checks only; PRIVATE publication is enforced by commit-time hooks and CI.
+These are path checks only; PRIVATE publication is enforced by commit-time hooks.
 No OS sandbox is installed.
 
 ## Languages

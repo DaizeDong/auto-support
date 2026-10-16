@@ -28,4 +28,4 @@ integrations; the default supported first-run path returns a local draft.
 
 Runtime output must resolve inside the companion's Git worktree, outside this tool
 repository. The runtime does not inspect remotes or query visibility; keep the companion
-PRIVATE, which the commit and push hooks and CI enforce.
+PRIVATE, which the commit and push hooks enforce.

@@ -1,7 +1,7 @@
 """Generate the synthetic runtime-state schema examples without reading live records.
 
 The default installs the declared paths. --out emits the flat verification copy
-expected by guards/tools/data_boundary.py.
+expected by fleet-guards tools/data_boundary.py.
 """
 import argparse
 from pathlib import Path

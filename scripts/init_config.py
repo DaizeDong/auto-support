@@ -10,7 +10,7 @@ output. Self-contained (E5): the committed policy.json carries the placeholder `
 `@secret:...` pointers. The per-machine product.json supplies the documentation root for drafts.
 Discord delivery and secret provisioning are separate deployment integrations.
 
-Discovery is shared with runtime_data and pinned Guards: doctor --config-dir, then
+Discovery is shared with runtime_data and the fleet_guards package: doctor --config-dir, then
 AUTO_SUPPORT_DATA_DIR, AUTO_SUPPORT_CONFIG, AUTO_SUPPORT_CONFIG_DIR, then the proven sibling
 auto-support-config. There is no home-directory location. Invalid explicit selections fail.
 The initializer's --out is a separate deliberate creation destination.

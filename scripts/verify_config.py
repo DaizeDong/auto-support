@@ -4,7 +4,7 @@ the documented discovery order, selects one product's policy.json, validates it 
 schema, and prints PASS/FAIL per check naming exactly what is missing. Exit 0 = ready, 1 = not ready,
 2 = usage error.
 
-Discovery is shared with runtime_data and pinned Guards: doctor --config-dir, then
+Discovery is shared with runtime_data and the fleet_guards package: doctor --config-dir, then
 AUTO_SUPPORT_DATA_DIR, AUTO_SUPPORT_CONFIG, AUTO_SUPPORT_CONFIG_DIR, then the proven sibling
 auto-support-config. There is no home-directory location. Invalid explicit selections fail.
 The initializer's --out is a separate deliberate creation destination.

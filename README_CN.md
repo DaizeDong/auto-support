@@ -61,8 +61,10 @@ Discord 消息 ─▶ 入口(注入+意图, spotlight) ─▶ 检索(只在 allo
 或手动克隆：
 
 ```bash
-git clone --recurse-submodules https://github.com/DaizeDong/auto-support.git ~/.claude/plugins/auto-support
+git clone https://github.com/DaizeDong/auto-support.git ~/.claude/plugins/auto-support
 ```
+
+伴生仓解析来自 `fleet_guards` 包。先克隆 [fleet-guards](https://github.com/DaizeDong/fleet-guards)，用 `git config --global fleet.guards <checkout>` 记下位置，再运行 `pip install -e "$(git config --get fleet.guards)"`。贡献者还要运行 `git config core.hooksPath .githooks`，让提交和推送经过隐私钩子。
 
 ## 快速开始
 
@@ -117,7 +119,7 @@ python skills/auto-support/scripts/answer_pipeline.py --policy ../auto-support-c
 拆分较长的散文章节依赖所配置的模型，固定的合成响应只能验证集成行为。Discord 监听、密钥配置、宿主 hook
 和真实投递需要单独验证；单元测试通过不会自动开启发布。提醒桥接依赖 `schedule-reminder`。
 写运行记录前会解析 PRIVATE 伴生仓，目标不在 Git 工作树内或落在工具仓内都会被拒绝，不会回退到工具仓。
-这些只是路径检查；伴生仓是否 PRIVATE 由提交期钩子和 CI 把关。本技能不安装 OS 沙箱。
+这些只是路径检查；伴生仓是否 PRIVATE 由提交期钩子把关。本技能不安装 OS 沙箱。
 
 ## 语言
 

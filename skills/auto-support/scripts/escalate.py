@@ -230,10 +230,6 @@ def _post_webhook(url: str, content: str) -> bool | None:
         valid = False
     if not valid:
         return False
-    import machine_role
-    if machine_role.is_secondary():
-        sys.stderr.write(machine_role.MESSAGE + "\n")  # the secondary machine never sends
-        return False
     if len(content) > 1900:
         # a founder reads this in Discord: say the body was cut instead of posting a partial
         content = content[:1900] + ("\n...[truncated, %d chars total]" % len(content))
